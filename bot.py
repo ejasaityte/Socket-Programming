@@ -16,7 +16,7 @@ s.connect((server, port))
 mode=0 #should be increased for every single client joining the server
 nick=input("Enter a nick name: ")
 user=input("Enter a user name: ")
-realname=input("Enter a real name (name and surname): ")
+realname=input("Enter a real name (e.g. Name Surname): ")
 mode_str=str(mode)
 
 request="NICK "+nick+"\r\nUSER "+user+" "+mode_str+" * :"+realname+"\r\n"
