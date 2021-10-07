@@ -31,58 +31,15 @@ s.send(request1.encode())
 result= s.recv(4096) ## 4096 - buffer
 print(result)
 
-time.sleep(10)
-s.close()
-"""
-request2="USER guest 0 * :TOT BOT"
-s.send(request2.encode())
-result2= s.recv(4096) ## 4096 - buffer
-print(result2)
-"""
-#nick=input("Enter a nickname:  ")
-#s.send(("NICK " + nick ).encode())
-#data = s.recv(1024)
-#print('Received', repr(data))
 
 
-"""
-#user=input("USER ")
-nick="NICK "+nick
-#user="USER "+user
-s.send(nick)
-#s.sendall('USER ')
-data = s.recv(1024)
-print('Received', repr(data))
-"""
-"""
-try:
+while True:
+    server_msg = s.recv(4096).decode()
+    print(server_msg) #display everything that server sends to bot
+    #if(server_msg.find("PRVMSG" )==0): #if a private message was sent to bot
 
-    # Send data
-    message = b'This is our message. It is very long but will only be transmitted in chunks of 16 at a time'
-    print('sending {!r}'.format(message))
-    sock.sendall(message)
 
-    # Look for the response
-    amount_received = 0
-    amount_expected = len(message)
 
-    while amount_received < amount_expected:
-        data = sock.recv(16)
-        amount_received += len(data)
-        print('received {!r}'.format(data))
 
-finally:
-    print('closing socket')
-    sock.close()
-"""
-#request="GET / HTTP/1.1\nHost:" +server+"\n\n"
-
-#s.connect((server, port))
-#s.send(request.encode())
-#result= s.recv(4096) ## 4096 - buffer
-#print(result)
-##alternative
-#while(len(result)>0 ) :
-#    print(result)
-#    result = s.recv(4096)
-
+#time.sleep(10)
+#s.close()
