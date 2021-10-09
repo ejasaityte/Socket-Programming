@@ -8,8 +8,10 @@ def connecting_to_socket(server, port):
         s = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
         s.connect((server, port))
         print("Bot has successfully connected to the server")
+        return 1
     except:
         print("Failed to connect to the server")
+        return 0
 
 
 
@@ -76,13 +78,24 @@ def PONG_response():
     s.send(msg.encode())
 
 def main():
-    server = input("Enter a server: ")  # '::1'
-    port_str = input("Enter a port: ")
-    port = int(port_str)  # 6667    connect_to_socket(server_port[0], server_port[1])
 
+    connection_success = False
+    while not connection_success:
+        server = input("Enter a server: ")  # '::1'
 
-    connecting_to_socket(server,port) #updates the global socket obj - s also it
-    # needs some error handling if it cant connect to the server
+        port_valid = False
+        while not port_valid:
+            port_str = input("Enter a port: ")
+            if port_str.isdigit():
+                port = int(port_str)                # 6667    connect_to_socket(server_port[0], server_port[1])
+                if port > 0 and port < 65536:       # checks if port number is valid
+                    port_valid = True
+                else:
+                    print('Port number invalid.')
+            else:
+                print('Port should be an integer.')
+
+        connection_success = connecting_to_socket(server,port) #updates the global socket obj - s also it
 
     log_in()
     channel_n=JOIN_channel() #getting channel name
