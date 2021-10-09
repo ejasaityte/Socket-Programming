@@ -26,11 +26,23 @@ def log_in():
     #Log in to IRC by specifying NICK and USERNAME
     mode=0 #should be increased for every single client joining the server ??
     in_use = True
-    user=input("Enter a username: ")
+
+    username_valid = False
+
+    while not username_valid:
+        user=input("Enter a username: ")
+        if user.find('@') != -1 and user.find(' ') != -1:            #checks if username doesn't contain an @ symbol or a space
+            username_valid = True
     realname=input("Enter a real name (e.g. Name Surname): ")
     mode_str=str(mode)
     while in_use:
-        nick=input("Enter a nickname: ")
+        nick_valid = False
+        while not nick_valid:
+            nick=input("Enter a nickname: ")
+            if len(nick) < 10 and len(nick) > 0 and not nick[0].isdigit() and nick[0] != '-':  #checks nickname validity
+                nick_valid = True
+            else:
+                print("Nickname not valid (1-9 characters length, first character can't be - or a digit).")
         request="NICK "+nick+"\r\nUSER "+user+" "+mode_str+" * :"+realname+"\r\n"
         s.send(request.encode())
         result= s.recv(4096).decode() ## 4096 - buffer
@@ -76,6 +88,9 @@ def respond_to_PRIVMSG(server_msg, channel_name):
 def PONG_response():
     msg="PONG bot is still alive"
     s.send(msg.encode())
+
+def respond_to_commands(server_msg, channel_name):
+    pass
 
 def main():
 
