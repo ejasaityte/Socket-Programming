@@ -79,10 +79,13 @@ def main():
     server = input("Enter a server: ")  # '::1'
     port_str = input("Enter a port: ")
     port = int(port_str)  # 6667    connect_to_socket(server_port[0], server_port[1])
-    #socket obj - s
-    connecting_to_socket(server,port)
+
+
+    connecting_to_socket(server,port) #updates the global socket obj - s also it
+    # needs some error handling if it cant connect to the server
+
     log_in()
-    channel_n=JOIN_channel()
+    channel_n=JOIN_channel() #getting channel name
 
     while True:
         server_msg = s.recv(4096).decode()
