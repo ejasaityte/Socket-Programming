@@ -31,9 +31,20 @@ def log_in():
 
     while not username_valid:
         user=input("Enter a username: ")
-        if user.find('@') != -1 and user.find(' ') != -1:            #checks if username doesn't contain an @ symbol or a space
+        if user.find('@') != -1 and user.find(' ') != -1 and len(user) > 0:            #checks if username doesn't contain an @ symbol or a space
             username_valid = True
-    realname=input("Enter a real name (e.g. Name Surname): ")
+        else:
+            print("Username cannot start with @ or space.")
+
+    realname_valid = False
+
+    while not realname_valid:
+        realname=input("Enter a real name (e.g. Name Surname): ")
+        if len(realname) > 0:
+            realname_valid = True
+        else:
+            print("Name too short.")
+
     mode_str=str(mode)
     while in_use:
         nick_valid = False
