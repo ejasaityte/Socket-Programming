@@ -27,30 +27,32 @@ def log_in():
     mode=0 #should be increased for every single client joining the server ??
     in_use = True
 
+    special_chars =  " '!\"#$%&'()*+,-./:;<=>?@[\]^_`{|}"
+
     username_valid = False
 
     while not username_valid:
         user=input("Enter a username: ")
-        if user.find('@') != -1 and user.find(' ') != -1 and len(user) > 0:            #checks if username doesn't contain an @ symbol or a space
+        if not any(i in user for i in special_chars) and len(user) > 0:            #checks if username doesn't contain an @ symbol or a space
             username_valid = True
         else:
-            print("Username cannot start with @ or space.")
+            print("Erroneous username.")
 
     realname_valid = False
 
     while not realname_valid:
         realname=input("Enter a real name (e.g. Name Surname): ")
-        if len(realname) > 0:
+        if not any(i in realname for i in special_chars) and len(realname) > 0:
             realname_valid = True
         else:
-            print("Name too short.")
+            print("Erroneous real name.")
 
     mode_str=str(mode)
     while in_use:
         nick_valid = False
         while not nick_valid:
             nick=input("Enter a nickname: ")
-            if len(nick) < 10 and len(nick) > 0 and not nick[0].isdigit() and nick[0] != '-':  #checks nickname validity
+            if len(nick) < 10 and len(nick) > 0 and not nick[0].isdigit() and not any(i in nick for i in special_chars):  #checks nickname validity
                 nick_valid = True
             else:
                 print("Nickname not valid (1-9 characters length, first character can't be - or a digit).")
@@ -104,7 +106,6 @@ def respond_to_commands(server_msg, channel_name):
     pass
 
 def main():
-
     connection_success = False
     while not connection_success:
         server = input("Enter a server: ")  # '::1'
