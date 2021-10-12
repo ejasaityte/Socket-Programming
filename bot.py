@@ -16,6 +16,12 @@ def connecting_to_socket(server, port):
 
 
 
+def check_name_validity(name):
+	special_chars =  "'!\"#$%&'()*+,-./:;<=>?@[\]^_`{|}"
+	if not any(i in name for i in special_chars) and len(name) > 0:   
+		return True
+	return False
+
 """
 Logging in/registering using IRC protocol
 """
@@ -27,41 +33,44 @@ def log_in(username_arg):
 	#Log in to IRC by specifying NICK and USERNAME
 	mode=0 #should be increased for every single client joining the server ??
 	in_use = True
+
+	username_valid = False
+	realname_valid = False
+	nick_valid = False
+
 	if username_arg:
 		user=username_arg
 		nick=username_arg
 		realname=username_arg
-	else:
-		special_chars =  "'!\"#$%&'()*+,-./:;<=>?@[\]^_`{|}"
+		if check_name_validity(user) and user.find(' ')==-1:
+			username_valid=True
+			realname_valid = True
+			nick_valid = True
+		else:
+			print("Erroneous name.")
 
-		username_valid = False
+	while not username_valid:
+		user=input("Enter a username: ")
+		if check_name_validity(user) and user.find(' ')==-1:            #checks if username doesn't contain an @ symbol or a space
+			username_valid = True
+		else:
+			print("Erroneous username.")
 
-		while not username_valid:
-			user=input("Enter a username: ")
-			if not any(i in user for i in special_chars) and len(user) > 0 and user.find(' ')==-1:            #checks if username doesn't contain an @ symbol or a space
-				username_valid = True
-			else:
-				print("Erroneous username.")
-
-		realname_valid = False
-
-		while not realname_valid:
-			realname=input("Enter a real name (e.g. Name Surname): ")
-			if not any(i in realname for i in special_chars) and len(realname) > 0:
-				realname_valid = True
-			else:
-				print("Erroneous real name.")
+	while not realname_valid:
+		realname=input("Enter a real name (e.g. Name Surname): ")
+		if check_name_validity(realname) and len(realname) > 0:
+			realname_valid = True
+		else:
+			print("Erroneous real name.")
 
 	mode_str=str(mode)
-	while in_use:
-		if not username_arg:
-			nick_valid = False
-			while not nick_valid:
-				nick=input("Enter a nickname: ")
-				if len(nick) < 10 and len(nick) > 0 and not nick[0].isdigit() and not any(i in nick for i in special_chars) and nick.find(' ')==-1:  #checks nickname validity
-					nick_valid = True
-				else:
-					print("Nickname not valid (1-9 characters length, first character can't be - or a digit).")
+	while in_use:			
+		while not nick_valid:
+			nick=input("Enter a nickname: ")
+			if len(nick) < 10 and len(nick) > 0 and not nick[0].isdigit() and check_name_validity(nick) and nick.find(' ')==-1:  #checks nickname validity
+				nick_valid = True
+			else:
+				print("Nickname not valid (1-9 characters length, first character can't be - or a digit).")
 		request="NICK "+nick+"\r\nUSER "+user+" "+mode_str+" * :"+realname+"\r\n"
 		s.send(request.encode())
 		result= s.recv(4096).decode() ## 4096 - buffer
