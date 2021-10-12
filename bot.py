@@ -1,6 +1,7 @@
 import socket
 import time
 import random
+import argparse
 
 def connecting_to_socket(server, port):
 	global s
@@ -15,44 +16,58 @@ def connecting_to_socket(server, port):
 
 
 
+def check_name_validity(name):
+	special_chars =  "'!\"#$%&'()*+,-./:;<=>?@[\]^_`{|}"
+	if not any(i in name for i in special_chars) and len(name) > 0:   
+		return True
+	return False
+
 """
 Logging in/registering using IRC protocol
 """
 ##Error handling needed to check:
 #   1)if nic, usern, realn have acceptable characters, format, length
 #   2)if username is in use (is it included in IRC?)
-def log_in():
+def log_in(username_arg):
 	global nick, user, realname
 	#Log in to IRC by specifying NICK and USERNAME
 	mode=0 #should be increased for every single client joining the server ??
 	in_use = True
 
-	special_chars =  " '!\"#$%&'()*+,-./:;<=>?@[\]^_`{|}"
-
 	username_valid = False
+	realname_valid = False
+	nick_valid = False
+
+	if username_arg:
+		user=username_arg
+		nick=username_arg
+		realname=username_arg
+		if check_name_validity(user) and user.find(' ')==-1:
+			username_valid=True
+			realname_valid = True
+			nick_valid = True
+		else:
+			print("Erroneous name.")
 
 	while not username_valid:
 		user=input("Enter a username: ")
-		if not any(i in user for i in special_chars) and len(user) > 0:            #checks if username doesn't contain an @ symbol or a space
+		if check_name_validity(user) and user.find(' ')==-1:            #checks if username doesn't contain an @ symbol or a space
 			username_valid = True
 		else:
 			print("Erroneous username.")
 
-	realname_valid = False
-
 	while not realname_valid:
 		realname=input("Enter a real name (e.g. Name Surname): ")
-		if not any(i in realname for i in special_chars) and len(realname) > 0:
+		if check_name_validity(realname) and len(realname) > 0:
 			realname_valid = True
 		else:
 			print("Erroneous real name.")
 
 	mode_str=str(mode)
-	while in_use:
-		nick_valid = False
+	while in_use:			
 		while not nick_valid:
 			nick=input("Enter a nickname: ")
-			if len(nick) < 10 and len(nick) > 0 and not nick[0].isdigit() and not any(i in nick for i in special_chars):  #checks nickname validity
+			if len(nick) < 10 and len(nick) > 0 and not nick[0].isdigit() and check_name_validity(nick) and nick.find(' ')==-1:  #checks nickname validity
 				nick_valid = True
 			else:
 				print("Nickname not valid (1-9 characters length, first character can't be - or a digit).")
@@ -68,8 +83,11 @@ def log_in():
 
 ##Error handling needed to check:
 #   1) if bot joins a non-existing channel
-def JOIN_channel():
-	channel_name = input("Enter chat name: ")
+def JOIN_channel(channel_arg):
+	if channel_arg:
+		channel_name=channel_arg
+	else:
+		channel_name = input("Enter chat name: ")
 	request1="JOIN #"+channel_name+"\r\n"
 	s.send(request1.encode())
 	result= s.recv(4096).decode() ## 4096 - buffer
@@ -125,33 +143,48 @@ def respond_to_commands(split_server_msg, channel_name):
 			else:
 				response_message = "PRIVMSG #" + channel_name + " :" + friend_nick + " :Not enough users to slap :(\r\n"
 		else:
-			if split_server_msg[4] in nick_arr: #checks if user is in user list (doesn't work yet)
-				response_message = "PRIVMSG #" + channel_name + " :" + split_server_msg[4] + ", you've been slapped with a trout!\r\n"
+			if split_server_msg[4].strip() in nick_arr: #checks if user is in user list (doesn't work yet)
+				response_message = "PRIVMSG #" + channel_name + " :" + split_server_msg[4].strip() + ", you've been slapped with a trout!\r\n"
+				print("opt 1" + response_message)
 			else:
 				response_message = "PRIVMSG #" + channel_name + " :" + friend_nick + " :Couldn't find user to slap :(\r\n"
+				print("opt 2" + response_message)
 	s.send(response_message.encode())
 
 def main():
+	parser = argparse.ArgumentParser()
+	parser.add_argument('--host', help='Server address')
+	parser.add_argument('--port', type=int, help='Port number')
+	parser.add_argument('--name', help='Nick, username, and real name of the bot')
+	parser.add_argument('--channel', help='Channel the bot should join')
+	args = parser.parse_args()
+
 	connection_success = False
 	while not connection_success:
-		server = input("Enter a server: ")  # '::1'
+		if args.host:
+			server = args.host
+		else: 
+			server = input("Enter a server: ")  # '::1'
 
-		port_valid = False
-		while not port_valid:
-			port_str = input("Enter a port: ")
-			if port_str.isdigit():
-				port = int(port_str)                # 6667    connect_to_socket(server_port[0], server_port[1])
-				if port > 0 and port < 65536:       # checks if port number is valid
-					port_valid = True
+		if args.port:
+			port = args.port
+		else:
+			port_valid = False
+			while not port_valid:
+				port_str = input("Enter a port: ")
+				if port_str.isdigit():
+					port = int(port_str)                # 6667    connect_to_socket(server_port[0], server_port[1])
+					if port > 0 and port < 65536:       # checks if port number is valid
+						port_valid = True
+					else:
+						print('Port number invalid.')
 				else:
-					print('Port number invalid.')
-			else:
-				print('Port should be an integer.')
+					print('Port should be an integer.')
 
 		connection_success = connecting_to_socket(server,port) #updates the global socket obj - s also it
 
-	log_in()
-	channel_n=JOIN_channel() #getting channel name
+	log_in(args.name)
+	channel_n=JOIN_channel(args.channel) #getting channel name
 	while True:
 		server_msg = s.recv(4096).decode()
 		split_server_msg = server_msg.split(' ') #splits server message by spaces
