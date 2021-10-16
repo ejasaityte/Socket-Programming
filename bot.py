@@ -71,8 +71,10 @@ def log_in(username_arg):
 				nick_valid = True
 			else:
 				print("Nickname not valid (1-9 characters length, first character can't be - or a digit).")
-		request="NICK "+nick+"\r\nUSER "+user+" "+mode_str+" * :"+realname+"\r\n"
-		s.send(request.encode())
+		request1 = "CAP LS 302\r\n"
+		request2 = "NICK " + nick + "\r\nUSER " + user + " " + mode_str + " * :" + realname + "\r\n "
+		s.send(request1.encode())
+		s.send(request2.encode())
 		result= s.recv(4096).decode() ## 4096 - buffer
 		nick_inuse_text = "Nickname is already in use" #migh need to be adjusted based on the message sent by a server when a nickname already in use
 		if nick_inuse_text in result:
@@ -188,6 +190,7 @@ def main():
 	while True:
 		server_msg = s.recv(4096).decode()
 		split_server_msg = server_msg.split(' ') #splits server message by spaces
+		print(split_server_msg)
 		if split_server_msg[0] == 'PING':
 			PONG_response()
 		elif split_server_msg[1] == 'PRIVMSG' and split_server_msg[2] == nick:
