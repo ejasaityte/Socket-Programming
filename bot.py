@@ -64,21 +64,28 @@ def log_in(username_arg):
 			print("Erroneous real name.")
 
 	mode_str=str(mode)
+	counter=0
 	while in_use:
+
 		while not nick_valid:
 			nick=input("Enter a nickname: ")
 			if len(nick) < 10 and len(nick) > 0 and not nick[0].isdigit() and check_name_validity(nick) and nick.find(' ')==-1:  #checks nickname validity
 				nick_valid = True
 			else:
 				print("Nickname not valid (1-9 characters length, first character can't be - or a digit).")
-		request1 = "CAP LS 302\r\n"
-		request2 = "NICK " + nick + "\r\nUSER " + user + " " + mode_str + " * :" + realname + "\r\n "
-		s.send(request1.encode())
-		s.send(request2.encode())
+		if counter==0:
+			request1 = "CAP LS 302\r\n"
+			request2 = "NICK " + nick + "\r\nUSER " + user + " " + mode_str + " * :" + realname + "\r\n "
+			s.send(request1.encode())
+			s.send(request2.encode())
+		else:
+			s.send(nick.encode())
 		result= s.recv(4096).decode() ## 4096 - buffer
 		nick_inuse_text = "Nickname is already in use" #migh need to be adjusted based on the message sent by a server when a nickname already in use
 		if nick_inuse_text in result:
 			print("Nickname is already in use choose another one")
+			counter=1
+			nick_valid=False
 		else:
 			print("Bot was successfully registered")
 			in_use=False
