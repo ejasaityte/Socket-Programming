@@ -168,6 +168,7 @@ def main():
 	args = parser.parse_args()
 
 	connection_success = False
+	try_num = 0
 	while not connection_success:
 		if args.host:
 			server = args.host
@@ -188,15 +189,24 @@ def main():
 						print('Port number invalid.')
 				else:
 					print('Port should be an integer.')
-
 		connection_success = connecting_to_socket(server,port) #updates the global socket obj - s also it
+		if (connection_success==0):
+			try_num+=1
+		if try_num>3:
+			print('Server unavailable.')
+			exit()
+
 	log_in(args.name)
 	channel_n=JOIN_channel(args.channel) #getting channel name
 	while True:
 		server_msg = s.recv(4096).decode()
+		print(server_msg)
 		split_server_msg = server_msg.split(' ') #splits server message by spaces
 		if split_server_msg[0] == 'PING':
 			PONG_response()
+		elif len(server_msg) == 0:
+			print('Server disconnected.')
+			exit()
 		elif split_server_msg[1] == 'PRIVMSG' and split_server_msg[2] == nick:
 			print("Private message received")
 			respond_to_PRIVMSG(server_msg, channel_n)
