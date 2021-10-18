@@ -2,6 +2,7 @@ import socket
 import time
 import random
 import argparse
+import atexit
 
 def connecting_to_socket(server, port):
 	global s
@@ -21,6 +22,11 @@ def check_name_validity(name):
 	if not any(i in name for i in special_chars) and len(name) > 0:
 		return True
 	return False
+
+def disconnect():
+	print('Disconnecting bot...')
+	message = 'QUIT :Leaving\r\n'
+	s.send(message.encode())
 
 """
 Logging in/registering using IRC protocol
@@ -64,31 +70,26 @@ def log_in(username_arg):
 			print("Erroneous real name.")
 
 	mode_str=str(mode)
-	counter=0
 	while in_use:
-
 		while not nick_valid:
 			nick=input("Enter a nickname: ")
 			if len(nick) < 10 and len(nick) > 0 and not nick[0].isdigit() and check_name_validity(nick) and nick.find(' ')==-1:  #checks nickname validity
 				nick_valid = True
 			else:
 				print("Nickname not valid (1-9 characters length, first character can't be - or a digit).")
-		if counter==0:
-			request1 = "CAP LS 302\r\n"
-			request2 = "NICK " + nick + "\r\nUSER " + user + " " + mode_str + " * :" + realname + "\r\n "
-			s.send(request1.encode())
-			s.send(request2.encode())
-		else:
-			s.send(nick.encode())
+		request="NICK "+nick+"\r\nUSER "+user+" "+mode_str+" * :"+realname+"\r\n"
+		s.send(request.encode())
 		result= s.recv(4096).decode() ## 4096 - buffer
 		nick_inuse_text = "Nickname is already in use" #migh need to be adjusted based on the message sent by a server when a nickname already in use
 		if nick_inuse_text in result:
 			print("Nickname is already in use choose another one")
-			counter=1
 			nick_valid=False
 		else:
 			print("Bot was successfully registered")
 			in_use=False
+
+
+
 
 ##Error handling needed to check:
 #   1) if bot joins a non-existing channel
@@ -116,12 +117,14 @@ def respond_to_PRIVMSG(server_msg, channel_name):
 	receiver = substrings[1]
 	receiver1 = receiver.split('!')
 
+	random_fact = random.choice(open("facts").readlines())
+
 	#if the message was sent via a public channel(e.g. #test) and directed to the bot
 	if(server_msg.find(channel_name) !=-1):
-		random_fact = "PRIVMSG #"+channel_name +" :"+ receiver1[0] + " :Today is a beautiful day! :)\r\n"
+		random_fact = "PRIVMSG #"+channel_name +" :"+ receiver1[0] + " :"+random_fact+"\r\n"
 	else:
 		# if the message was sent privately and directed to the bot
-		random_fact="PRIVMSG "+receiver1[0]+" :Today is a beautiful day! :)\r\n"
+		random_fact="PRIVMSG "+receiver1[0]+" :"+random_fact+"\r\n"
 
 	s.send(random_fact.encode())
 
@@ -136,7 +139,7 @@ def respond_to_commands(split_server_msg, channel_name):
 			response_message = "PRIVMSG #"+channel_name + " :" + friend_nick + " :Hello to you too, " + friend_nick + ".\r\n"
 		else:
 			response_message="PRIVMSG "+friend_nick+" :Hello to you too, " + friend_nick + ".\r\n"
-	else:
+	elif split_server_msg[3] == ':!slap\r\n' or split_server_msg[3] == ':!slap':
 		query="NAMES #"+channel_name+"\r\n" #requests names of all the users in channel
 		s.send(query.encode())
 		n_server_msg = s.recv(4096).decode()
@@ -148,12 +151,12 @@ def respond_to_commands(split_server_msg, channel_name):
 				rand_nick = random.choice(nick_arr) #gets random user from user list
 				while rand_nick==nick or rand_nick == friend_nick: #if random user is bot or the user who sent the command, try again
 					rand_nick = random.choice(nick_arr)
-				response_message = "PRIVMSG #" + channel_name + " :" + rand_nick + ", you've been slapped with a trout!\r\n"
+				response_message = "PRIVMSG #" + channel_name + " :" + rand_nick + " :You've been slapped with a trout!\r\n"
 			else:
 				response_message = "PRIVMSG #" + channel_name + " :" + friend_nick + " :Not enough users to slap :(\r\n"
 		else:
 			if split_server_msg[4].strip() in nick_arr: #checks if user is in user list (doesn't work yet)
-				response_message = "PRIVMSG #" + channel_name + " :" + split_server_msg[4].strip() + ", you've been slapped with a trout!\r\n"
+				response_message = "PRIVMSG #" + channel_name + " :" + split_server_msg[4].strip() + " :You've been slapped with a trout!\r\n"
 				print("opt 1" + response_message)
 			else:
 				response_message = "PRIVMSG #" + channel_name + " :" + friend_nick + " :Couldn't find user to slap :(\r\n"
@@ -169,6 +172,7 @@ def main():
 	args = parser.parse_args()
 
 	connection_success = False
+	try_num = 0
 	while not connection_success:
 		if args.host:
 			server = args.host
@@ -189,22 +193,32 @@ def main():
 						print('Port number invalid.')
 				else:
 					print('Port should be an integer.')
-
 		connection_success = connecting_to_socket(server,port) #updates the global socket obj - s also it
+		if (connection_success==0):
+			try_num+=1
+		if try_num>3:
+			print('Server unavailable.')
+			exit()
 
 	log_in(args.name)
 	channel_n=JOIN_channel(args.channel) #getting channel name
 	while True:
 		server_msg = s.recv(4096).decode()
+		print(server_msg)
 		split_server_msg = server_msg.split(' ') #splits server message by spaces
-		print(split_server_msg)
+		#print(split_server_msg)
 		if split_server_msg[0] == 'PING':
 			PONG_response()
+		elif len(server_msg) == 0:
+			print('Server disconnected.')
+			exit()
 		elif split_server_msg[1] == 'PRIVMSG' and split_server_msg[2] == nick:
 			print("Private message received")
 			respond_to_PRIVMSG(server_msg, channel_n)
 		elif split_server_msg[1] == 'PRIVMSG' and (split_server_msg[3] == ':!hello\r\n' or split_server_msg[3] == ':!slap\r\n' or split_server_msg[3] == ':!slap'):
 			respond_to_commands(split_server_msg, channel_n)
+
+	atexit.register(disconnect)
 	#time.sleep(10)
 	#s.close()
 
