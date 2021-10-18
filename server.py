@@ -22,7 +22,6 @@ class Channel():
 
     def __init__(self, name):
         self.name = name
-        print(name)
 
 #class for Clients
 #currently just used for storing clients in channels
@@ -62,6 +61,11 @@ def handle_client(client, addr):
             print(msg)
 
             broadcast(f"[{nicks[i]}]: {msg}".encode('ascii'))
+
+            #get the hostmask
+            hostmask = f"{users[i]}@{addr[0]}"
+            #get the server name
+            serverName = socket.gethostname()
             
             #handles commands
             #handles private message command
@@ -71,9 +75,11 @@ def handle_client(client, addr):
                 #find the searched for channel
                 for channel in channels:
                     if target == channel.name:
+                        outmsg = f":{nicks[i+1]}!{hostmask} {msg}\n"
                         #send the message to each member of the channel
                         for member in channel.members:
-                            member.connection.send(msg.encode('ascii'))
+                            if member.connection != client:
+                                member.connection.send((outmsg).encode('ascii'))
                         #stop the loop
                         break
             #handles join command
@@ -89,36 +95,33 @@ def handle_client(client, addr):
                         #store the channel
                         tempChannel = channel
                         #add the client to the channel
-                        channel.members.append(Client(nicks[i], client))
+                        channel.members.append(Client(nicks[i+1], client))
                         #stop the loop
                         break
                 #if the channel doesn't exist
                 if (tempChannel == None):
                     #create the channel
-                    channel = Channel(channelName)
+                    tempChannel = Channel(channelName)
                     #add the client to the channel
-                    channel.members.append(Client(nicks[i], client))
-                    #store the channel
-                    tempChannel = channel
+                    tempChannel.members.append(Client(nicks[i+1], client))
                     #add the channel to the list
-                    channels.append(channel)
+                    channels.append(tempChannel)
                 
-                #get the hostmask
-                hostmask = f"{users[i]}@{addr[0]}"
-                #get the server name
-                serverName = socket.gethostname()
+                
 
                 #create the response for the client
-                reply = ''
-                reply += f":{nicks[i]}!{hostmask} JOIN {channelName}\r\n"
-                reply += f":{serverName} 331 {nicks[i]} {channelName} :No topic is set\r\n"
-                reply += f":{serverName} 353 {nicks[i]} = {channelName}:{nicks[i]}\r\n"
                 namesList = ""
                 members = tempChannel.members
                 for member in members:
                     namesList += member.nick
                     namesList += " "
-                reply += f":{serverName} 366 {namesList} {channelName} :End of NAMES list\r\n"
+                
+                reply = (
+                    f":{nicks[i+1]}!{hostmask} JOIN {channelName}\n"
+                    f":{serverName} 331 {nicks[i+1]} {channelName} :No topic is set\n"
+                    f":{serverName} 353 {nicks[i+1]} = {channelName}:{nicks[i+1]}\n"
+                    f":{serverName} 366 {namesList} {channelName} :End of NAMES list\n"
+                )
 
                 #send the reply
                 client.send(reply.encode('ascii'))
