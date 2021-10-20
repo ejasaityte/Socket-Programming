@@ -11,7 +11,10 @@ ADDR = (SERVER, PORT)  # tuple for connecting to server
 server_socket = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
 # print(socket.getaddrinfo('localhost', PORT)[0][4][0])
 # SERVER = socket.getaddrinfo('localhost',PORT)[0][4][0]   #getting ipv6
-server_socket.bind(ADDR)
+try:
+    server_socket.bind(ADDR)
+except:
+    print("Binding error. ")
 server_socket.listen()
 print(f"[LISTENING] Server is listening on {PORT}")
 
@@ -42,6 +45,7 @@ users = []  # stores the username of all clients
 channels = []  # stores the channels on the server
 threads = []
 semaphore = threading.Semaphore(1)
+full_login =[] #stores nick usrname mode number special character and real name
 
 
 # send message to all clients
@@ -100,7 +104,8 @@ def handle_client(client, addr):
                     print(text)
                     j = nicks.index(target) # index of a client that must receive the message
                     print(f"index {j}")
-                    text = f":{nicks[i]}!{users[i]}@::1 PRIVMSG {nicks[i]} :{text}"
+
+                    text = f":{nicks[i]}!{users[i]}@{clients[i].getpeername()[0]} PRIVMSG {nicks[i]} :{text}"
                     # needs testing ---
                     #i = nicks.index(receiving_client)
                     # j= clients.index(sending_client)
@@ -124,6 +129,17 @@ def handle_client(client, addr):
                     if (channel.name == channelName):
                         # store the channel
                         tempChannel = channel
+                        members_list = tempChannel.members
+
+                        for member in members_list:
+                            print(member.nick)
+                            k = nicks.index(member.nick)
+                            print(k)
+                            text = f":{nicks[i]}!{users[i]}@{clients[i].getpeername()[0]} JOIN {channelName}\r\n"
+                            clients[k].send(bytes(text.encode()))
+                            address1 = str(clients[k].getpeername()[0]) + ":" + str(clients[k].getpeername()[1])
+                            print(f"[{address1}] <- {str(bytes(text.encode()))}")
+                        # add the client to the channel
                         # add the client to the channel
                         channel.members.append(Client(nicks[i], client))
                         # stop the loop
@@ -141,29 +157,52 @@ def handle_client(client, addr):
                 namesList = ""
                 members = tempChannel.members
                 for member in members:
+                    k = nicks.index(member.nick)
                     namesList += member.nick
                     namesList += " "
 
+                #print(reply_to_WHO)
+
                 reply = (
-                    f":{nicks[i]}!{hostmask} JOIN {channelName}\n"
-                    f":{serverName} 331 {nicks[i]} {channelName} :No topic is set\n"
-                    f":{serverName} 353 {nicks[i]} = {channelName}:{nicks[i]}\n"
-                    f":{serverName} 366 {namesList} {channelName} :End of NAMES list\n"
+                    f":{nicks[i]}!{hostmask} JOIN {channelName}\r\n"
+                    f":{serverName} 331 {nicks[i]} {channelName} :No topic is set\r\n"
+                    f":{serverName} 353 {nicks[i]} = {channelName} :{namesList}\r\n"
+                    f":{serverName} 366 {nicks[i]} {channelName} :End of NAMES list\r\n"
                 )
 
                 # send the reply
                 client.send(reply.encode('ascii'))
-                #print(f"{address} <- {str(bytes(reply.encode()))}")
+                print(f"[{address}] <- {str(bytes(reply.encode()))}")
+
             elif command == "MODE":
                 chat = msg.split()[1]
                 text = f":{serverName} 324 {nicks[i]} {chat} +\r\n"
-                # client.send(text.encode())
+                client.send(text.encode())
+                #client.send(bytes(text.encode()))
                 print(f"[{address}] <- {str(bytes(text.encode()))}")
             elif command == "WHO":
-                chat = msg.split()[1]
-                text = f":{serverName} 352 {nicks[i]} {chat} {nicks[i]} \r\n"  # should be added more
-                # lient.send(text.encode())
-                print(f"[{address}] <- {str(bytes(text.encode()))}")
+                chat_name = msg.split()[1]
+                clients_in_channel = None
+                reply_to_WHO =""
+                for channel in channels:
+                    if (channel.name == channelName):
+                        clients_in_channel=channel.members
+                        break
+                for member in clients_in_channel:
+                    l = nicks.index(member.nick)
+                    reply_to_WHO += f":{serverName} 352 {nicks[i]} {channelName} {users[l]} {addr[0]} {serverName} {full_login[l]}\r\n"
+                reply_to_WHO += f":{serverName} 315 {nicks[i]} {channelName} :End of WHO list\r\n"
+                client.send(reply_to_WHO.encode())
+                print(f"[{address}] <- {str(bytes(reply_to_WHO.encode()))}")
+            elif command == "NICK":
+                new_nick = msg.split()[1]
+                validated_nick = valid_nick(new_nick, client)
+                print(validated_nick)
+                text = f":{nicks[i]}!{users[i]}@{clients[i].getpeername()[0]} NICK {validated_nick}\n"
+                send_to_client(client, text)
+                nicks[i] = validated_nick  # update an old nick
+
+                print(nicks[i])
             elif command == "QUIT":
                 print(address + " disconnected")
                 clients.remove(clients[i])
@@ -181,7 +220,32 @@ def handle_client(client, addr):
             semaphore.release()
 
             break
+def receive_from_client(client):
+    rcv = client.recv(HEADER).decode('ascii')# decode the bytes into words
+    address = str(client.getpeername()[0]) + ":" + str(client.getpeername()[1])
+    print("[", address, "] -> " + str(bytes(rcv.encode())))
+    return rcv
 
+def send_to_client(client_socket, text):
+    address = str(client_socket.getpeername()[0]) + ":" + str(client_socket.getpeername()[1])
+    client_socket.send(text.encode())
+    #text.encode('ascii')????
+    print("[", address, "] <- " + str(bytes(text.encode())))
+
+def valid_nick(nick, client):
+    bad_nick = True
+    while bad_nick:
+        if len(nicks) ==0:
+            return nick
+
+        elif nick in nicks:
+            text = "Nickname is already in use"
+            send_to_client(client,text)
+            rcv = receive_from_client(client)
+            nick= rcv.split()[1]
+        else:
+            bad_nick = False
+    return nick
 
 # handle first communication from clients
 # handle first communication from clients
@@ -204,16 +268,24 @@ def recieve(client_socket, addr):
             # but we don't want that, so we split around the
             # new line
             nick = subs[0][5:]  # set the nickname to everything following "NICK "
+            nick = valid_nick(nick,client_socket)
             user = subs[1].split()[1]
             users.append(user)
             nicks.append(nick)  # add nickname to array
+            log = nick + " " + subs[1].replace("USER ","")
+            print(log)
+            full_login.append(log)
             break
         elif "CAP" in first_chars and "NICK" in rcv:
             subs = rcv.split('\r\n')
             nick = subs[1][5:]  # set the nickname to everything following "NICK "
+            nick = valid_nick(nick,client_socket)
             user = subs[2].split()[1]
             users.append(user)
             nicks.append(nick)
+            log = nick + " " + subs[2].replace("USER ", "")
+            print(log)
+            full_login.append(log)
             break
 
     clients.append(client_socket)  # add client instance to the array
