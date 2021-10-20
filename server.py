@@ -164,6 +164,16 @@ def handle_client(client, addr):
                 text = f":{serverName} 352 {nicks[i]} {chat} {nicks[i]} \r\n"  # should be added more
                 # lient.send(text.encode())
                 print(f"[{address}] <- {str(bytes(text.encode()))}")
+            elif command == "PART":
+                channelName = msg.split()[1]
+                for channel in channels:
+                    if channel.name == channelName:
+                        for member in channel.members:
+                            outmsg = f":{nicks[i]}!{hostmask} {msg} : Leaving\n"
+                            member.connection.send((outmsg).encode('ascii'))
+                            if member.connection == client:
+                                channel.members.remove(member)
+                        break
             elif command == "QUIT":
                 print(address + " disconnected")
                 clients.remove(clients[i])
