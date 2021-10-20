@@ -41,7 +41,7 @@ nicks = []  # stores the nicknames of all clients
 users = []  # stores the username of all clients
 channels = []  # stores the channels on the server
 threads = []
-semaphore = threading.Semaphore()
+semaphore = threading.Semaphore(1)
 
 
 # send message to all clients
@@ -61,7 +61,7 @@ def print_total_clients():
 
 # handle the clients messages that are sent
 def handle_client(client, addr):
-    # semaphore.acquire()
+    semaphore.acquire()
     while True:
         i = clients.index(client)
         try:
@@ -168,16 +168,17 @@ def handle_client(client, addr):
                 print(address + " disconnected")
                 clients.remove(clients[i])
                 nicks.remove(nicks[i])
-                threads[i].kill()  # but not removed from list
+                #threads[i].kill()  # but not removed from list
                 client.close()
-                # semaphore.release()
+                semaphore.release()
                 break
 
+            semaphore.release()
 
         except:
             clients.remove(client)
             client.close()
-            # semaphore.release()
+            semaphore.release()
 
             break
 
