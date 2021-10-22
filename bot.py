@@ -93,7 +93,6 @@ def log_in(username_arg):
 			request = "NICK " + nicknames_list[nick_option] + "\r\n"
 		s.send(request.encode())
 		result= s.recv(4096).decode() ## 4096 - buffer
-		print(result)
 		if "Nickname is already in use" in result:
 			#print("Nickname is already in use choose another one")
 			nick_option += 1
@@ -101,7 +100,6 @@ def log_in(username_arg):
 			print(s.recv(4096).decode())
 			in_use=False
 	return nicknames_list[nick_option]
-	#str(bytes(s.recv(4096)))
 
 
 ##Error handling needed to check:
@@ -138,14 +136,14 @@ def respond_to_PRIVMSG(server_msg, nick):
 	if server_msg.split()[2] == nick:
 		sender = server_msg.split('!')[0]
 		sender = sender.replace(":", "")
-		print("MESSAGE: "+server_msg)
-		print("sender: "+ sender)
+		#print("MESSAGE: "+server_msg)
+		#print("sender: "+ sender)
 		text=f"PRIVMSG {sender} :{random_fact}\r\n"
-		print(text)
+		#print(text)
 		s.send(text.encode())
 	#message from a channel
 	elif "#" or "&" in server_msg.split()[2]:
-		print(server_msg.split()[2])
+		#print(server_msg.split()[2])
 		text = f"PRIVMSG {server_msg.split()[2]} :{random_fact}\r\n"
 		s.send(text.encode())
 

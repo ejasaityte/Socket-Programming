@@ -9,12 +9,8 @@ ADDR = (SERVER, PORT)  # tuple for connecting to server
 # server boot up
 # need to add error handling for a failed connection (should be fine tho)
 server_socket = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
-# print(socket.getaddrinfo('localhost', PORT)[0][4][0])
-# SERVER = socket.getaddrinfo('localhost',PORT)[0][4][0]   #getting ipv6
-try:
-    server_socket.bind(ADDR)
-except:
-    print("Binding error. ")
+
+server_socket.bind(ADDR)
 server_socket.listen()
 print(f"[LISTENING] Server is listening on {PORT}")
 serverName = socket.gethostname()
@@ -77,18 +73,15 @@ def handle_client(client, addr):
 
             print(f"[{address}] -> {str(bytes(msg.encode()))}")
 
-            # broadcast(f"[{nicks[i]}]: {msg}".encode('ascii'))
-
             # get the hostmask
             hostmask = f"{users[i]}@{addr[0]}"
-            # get the server name
-
             command = msg.split()[0]
+
             # handles commands
             # handles private message command
             if (command == "PRIVMSG"):
                 target = msg.split()[1]
-                print(target)
+                #print(target)
                 # get the server name from the message
                 if "#" in target:  # message sent in a chat
                     # find the searched for channel
@@ -98,33 +91,29 @@ def handle_client(client, addr):
                             # send the message to each member of the channel
                             for member in channel.members:
                                 if member.connection != client:
-                                    member.connection.send((outmsg).encode('ascii'))
+                                    send_to_client(member.connection, outmsg)
+                                    #member.connection.send((outmsg).encode('ascii'))
+
                             # stop the loop
                             break
 
                 else:
                     text = msg.split(":")[1]
-                    print(text)
+                    #print(text)
                     j = nicks.index(target) # index of a client that must receive the message
-                    print(f"index {j}")
+                    #print(f"index {j}")
 
-                    text = f":{nicks[i]}!{users[i]}@{clients[i].getpeername()[0]} PRIVMSG {nicks[i]} :{text}"
-                    # needs testing ---
-                    #i = nicks.index(receiving_client)
-                    # j= clients.index(sending_client)
-                    # print(nicks[j])
-                    # msg=f"{nicks[j]} PRIVMSG {receiving_client} :{text}"
-                    # sending_client.send(bytes(text.encode()))
+                    text = f":{nicks[i]}!{users[i]}@{clients[i].getpeername()[0]} PRIVMSG {nicks[j]} :{text}"
                     clients[j].send(bytes(text.encode()))
                     address1=str(clients[j].getpeername()[0]) + ":" + str(clients[j].getpeername()[1])
-
                     print(f"[{address1}] <- {str(bytes(text.encode()))}")
 
             # handles join command
             elif (command == "JOIN"):
                 # get the channel name from the message
                 channelName = msg.split()[1]
-                if channelName[0] == "#" or channelName[0] == "&":
+                #channel name must contain #
+                if channelName[0] == "#":
                     # temporary channel variable
                     tempChannel = None
                     # check if channel exists
@@ -134,16 +123,15 @@ def handle_client(client, addr):
                             # store the channel
                             tempChannel = channel
                             members_list = tempChannel.members
-
+                            #sending JOIN to those members that are already in a channel
                             for member in members_list:
-                                print(member.nick)
+                                #print(member.nick)
                                 k = nicks.index(member.nick)
-                                print(k)
+                                #print(k)
                                 text = f":{nicks[i]}!{users[i]}@{clients[i].getpeername()[0]} JOIN {channelName}\r\n"
                                 clients[k].send(bytes(text.encode()))
                                 address1 = str(clients[k].getpeername()[0]) + ":" + str(clients[k].getpeername()[1])
                                 print(f"[{address1}] <- {str(bytes(text.encode()))}")
-                            # add the client to the channel
                             # add the client to the channel
                             channel.members.append(Client(nicks[i], client))
                             # stop the loop
@@ -164,26 +152,23 @@ def handle_client(client, addr):
                         namesList += member.nick
                         namesList += " "
 
-                    print(f"chat name {tempChannel.name} length {len(tempChannel.members)}")
-
                     reply = (
                         f":{nicks[i]}!{hostmask} JOIN {channelName}\r\n"
                         f":{serverName} 331 {nicks[i]} {channelName} :No topic is set\r\n"
                         f":{serverName} 353 {nicks[i]} = {channelName} :{namesList}\r\n"
                         f":{serverName} 366 {nicks[i]} {channelName} :End of NAMES list\r\n"
                         )
-
+                # if channel name does not contain #
                 else:
                     reply = f":{serverName} 403 {nicks[i]} {channelName} :No such channel\r\n"
 
-                client.send(reply.encode('ascii'))
+                client.send(reply.encode())
                 print(f"[{address}] <- {str(bytes(reply.encode()))}")
 
             elif command == "MODE":
                 chat = msg.split()[1]
                 text = f":{serverName} 324 {nicks[i]} {chat} +\r\n"
                 client.send(text.encode())
-                #client.send(bytes(text.encode()))
                 print(f"[{address}] <- {str(bytes(text.encode()))}")
             elif command == "WHO":
                 chat_name = msg.split()[1]
@@ -222,9 +207,6 @@ def handle_client(client, addr):
                     text = f":{serverName} 433 {nicks[i]} {new_nick} :Nickname is already in use\r\n"
                 elif valid_nick_TF(new_nick, client) == 2:
                     text = f":{serverName} 432 {nicks[i]} {new_nick} :Erroneous Nickname\r\n"
-
-
-
                 send_to_client(client, text)
 
             elif command == "QUIT":
@@ -235,6 +217,10 @@ def handle_client(client, addr):
                 client.close()
                 semaphore.release()
                 break
+            elif command == "PING":
+                msg1 = msg.split()[1]
+                resp = f":{serverName} PONG {serverName} :{msg1}"
+                send_to_client(client,resp)
             else:
                 r = f":{serverName} 421 {nicks[i]} {command} :Unknown command\r\n"
                 client.send(r.encode('ascii'))
@@ -246,19 +232,21 @@ def handle_client(client, addr):
             clients.remove(client)
             client.close()
             semaphore.release()
-
             break
+#get message from client and display it in server in bytes format
 def receive_from_client(client):
     rcv = client.recv(HEADER).decode('ascii')# decode the bytes into words
     address = str(client.getpeername()[0]) + ":" + str(client.getpeername()[1])
     print("[", address, "] -> " + str(bytes(rcv.encode())))
     return rcv
 
+#send message to client and display it in server in bytes format
 def send_to_client(client_socket, text):
     address = str(client_socket.getpeername()[0]) + ":" + str(client_socket.getpeername()[1])
     client_socket.send(text.encode())
     print(f"[{address}] <- " + str(bytes(text.encode())))
 
+#cheching validity of a nick that a client wants to update
 def valid_nick_TF(nick, client):
     special_chars = "'!\"#$%&'()*+,-./:;<=>?@[\]^_`{|}"
     numbers = "0123456789"
@@ -266,42 +254,39 @@ def valid_nick_TF(nick, client):
         if len(nicks) == 0:  # first nickname
             return 0  # accept nickname
         elif nick in nicks:
-            return 1  # nickname in use
+            return 1  # nickname in use error
         else:
             return 0
     else:
-        return 2  # nickname has wrong format (e.g. symbols or starts with a number)
+        return 2  # nickname has wrong format (e.g. symbols or starts with a number) error
 
-def valid_nick(nick, client, special_char):
+#getting a valid nickname during registration process. If 1st nick is in use, use second one and so on
+def valid_nick(nick, client ):
     bad_nick = True
     special_chars = "!#$%&()*+,./:;<=>?@"
     numbers = "0123456789"
-    print("enter")
+
     while bad_nick:
         if not any(i in nick for i in special_chars) and len(nick) >0 and len(nick) <10 and not nick[0] in numbers:
             if len(nicks) ==0:
                 return nick
 
             elif nick in nicks:
-                print("inside")
-
-                text = f":{serverName} 433 {special_char} {nick} :Nickname is already in use\r\n"
-
+                text = f":{serverName} 433 * {nick} :Nickname is already in use\r\n"
                 send_to_client(client,text)
                 rcv = receive_from_client(client)
-                print(rcv)
+                #print(rcv)
                 nick= rcv.split()[1]
             else:
                 bad_nick = False
         else:
-            text =f":{serverName} 432 {special_char} {nick} :Erroneous Nickname\r\n"
+            text =f":{serverName} 432 * {nick} :Erroneous Nickname\r\n"
             send_to_client(client, text)
             rcv = receive_from_client(client)
-            print(rcv)
+            #print(rcv)
             nick = rcv.split()[1]
     return nick
 
-# handle first communication from clients
 # handle first communication from clients
 def recieve(client_socket, addr):
     address = str(client_socket.getpeername()[0]) + ":" + str(client_socket.getpeername()[1])
@@ -316,34 +301,37 @@ def recieve(client_socket, addr):
         # JOIN, etc. if some wise guy decides to call them-
         # -self "NICK" to mess up the system, this counters that
 
-        if "NICK" in first_chars:  # handling NICK command
+        # if CAP and NICK comes in different lines
+        if "NICK" in first_chars:
 
             subs = rcv.split('\r\n')
             nick = subs[0][5:]  # set the nickname to everything following "NICK "
-            special_char = subs[1].split()[3]
-            nick = valid_nick(nick,client_socket, special_char)
+            nick = valid_nick(nick,client_socket)
             user = subs[1].split()[1]
             users.append(user)
             nicks.append(nick)  # add nickname to array
             log = nick + " " + subs[1].replace("USER ","")
-            print(log)
+           # print(log)
             full_login.append(log)
             break
+
+        # if CAP and NICK comes in one line
         elif "CAP" in first_chars and "NICK" in rcv:
             subs = rcv.split('\r\n')
             nick = subs[1][5:]  # set the nickname to everything following "NICK "
+            #print("nick " + nick)
             nick = valid_nick(nick,client_socket)
             user = subs[2].split()[1]
             users.append(user)
             nicks.append(nick)
             log = nick + " " + subs[2].replace("USER ", "")
-            print(log)
+            #print(log)
             full_login.append(log)
             break
 
     clients.append(client_socket)  # add client instance to the array
-    print(nicks)
-    print(nick, user)
+    #print(nicks)
+    #print(nick, user)
     joinmsg_serv = "{0} joined the server!\r\n"
     joinmsg_client = "Welcome to the server {0}!\r\n"
     """
@@ -360,12 +348,11 @@ def recieve(client_socket, addr):
         f":{serverName} 003 {nick} :This server was created in 2021\r\n"
         f":{serverName} 004 {nick} {serverName} group_5 server\r\n"
         f":{serverName} 256 {nick} :There are {len(clients)} and 0 servise\r\n"
-       # f":{serverName} 422 {nick} :MOTD File is missing\r\n"
+        #f":{serverName} 422 {nick} :MOTD File is missing\r\n"
               )
 
     broadcast(joinmsg_serv.format(nick).encode('ascii'))
     client_socket.send(welcome.format(nick).encode('ascii'))
-   # welcome = "Welcome to the server " + nick
     print(f"[{address}] <- {str(bytes(welcome.encode()))}")
     # start a thread for handling the client comms
     thread = threading.Thread(target=handle_client, args=(client_socket, addr))
@@ -384,4 +371,5 @@ def main():
 
 
 main()
+
 
