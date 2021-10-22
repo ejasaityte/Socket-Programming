@@ -17,6 +17,8 @@ except:
     print("Binding error. ")
 server_socket.listen()
 print(f"[LISTENING] Server is listening on {PORT}")
+serverName = socket.gethostname()
+
 
 
 # class for Channels
@@ -24,8 +26,9 @@ class Channel():
     name = ''
     members = []
 
-    def __init__(self, name):
+    def __init__(self, name, members):
         self.name = name
+        self.members=members
 
 
 # class for Clients
@@ -79,7 +82,6 @@ def handle_client(client, addr):
             # get the hostmask
             hostmask = f"{users[i]}@{addr[0]}"
             # get the server name
-            serverName = socket.gethostname()
 
             command = msg.split()[0]
             # handles commands
@@ -99,6 +101,7 @@ def handle_client(client, addr):
                                     member.connection.send((outmsg).encode('ascii'))
                             # stop the loop
                             break
+
                 else:
                     text = msg.split(":")[1]
                     print(text)
@@ -121,56 +124,58 @@ def handle_client(client, addr):
             elif (command == "JOIN"):
                 # get the channel name from the message
                 channelName = msg.split()[1]
-                # temporary channel variable
-                tempChannel = None
-                # check if channel exists
-                for channel in channels:
-                    # if the channel is found
-                    if (channel.name == channelName):
-                        # store the channel
-                        tempChannel = channel
-                        members_list = tempChannel.members
+                if channelName[0] == "#" or channelName[0] == "&":
+                    # temporary channel variable
+                    tempChannel = None
+                    # check if channel exists
+                    for channel in channels:
+                        # if the channel is found
+                        if (channel.name == channelName):
+                            # store the channel
+                            tempChannel = channel
+                            members_list = tempChannel.members
 
-                        for member in members_list:
-                            print(member.nick)
-                            k = nicks.index(member.nick)
-                            print(k)
-                            text = f":{nicks[i]}!{users[i]}@{clients[i].getpeername()[0]} JOIN {channelName}\r\n"
-                            clients[k].send(bytes(text.encode()))
-                            address1 = str(clients[k].getpeername()[0]) + ":" + str(clients[k].getpeername()[1])
-                            print(f"[{address1}] <- {str(bytes(text.encode()))}")
+                            for member in members_list:
+                                print(member.nick)
+                                k = nicks.index(member.nick)
+                                print(k)
+                                text = f":{nicks[i]}!{users[i]}@{clients[i].getpeername()[0]} JOIN {channelName}\r\n"
+                                clients[k].send(bytes(text.encode()))
+                                address1 = str(clients[k].getpeername()[0]) + ":" + str(clients[k].getpeername()[1])
+                                print(f"[{address1}] <- {str(bytes(text.encode()))}")
+                            # add the client to the channel
+                            # add the client to the channel
+                            channel.members.append(Client(nicks[i], client))
+                            # stop the loop
+                            break
+                    # if the channel doesn't exist
+                    if (tempChannel == None):
+                        # create the channel
+                        tempChannel = Channel(channelName,[])
                         # add the client to the channel
-                        # add the client to the channel
-                        channel.members.append(Client(nicks[i], client))
-                        # stop the loop
-                        break
-                # if the channel doesn't exist
-                if (tempChannel == None):
-                    # create the channel
-                    tempChannel = Channel(channelName)
-                    # add the client to the channel
-                    tempChannel.members.append(Client(nicks[i], client))
-                    # add the channel to the list
-                    channels.append(tempChannel)
+                        tempChannel.members.append(Client(nicks[i], client))
+                        # add the channel to the list
+                        channels.append(tempChannel)
 
-                # create the response for the client
-                namesList = ""
-                members = tempChannel.members
-                for member in members:
-                    k = nicks.index(member.nick)
-                    namesList += member.nick
-                    namesList += " "
+                    # create the response for the client
+                    namesList = ""
+                    members = tempChannel.members
+                    for member in members:
+                        namesList += member.nick
+                        namesList += " "
 
-                #print(reply_to_WHO)
+                    print(f"chat name {tempChannel.name} length {len(tempChannel.members)}")
 
-                reply = (
-                    f":{nicks[i]}!{hostmask} JOIN {channelName}\r\n"
-                    f":{serverName} 331 {nicks[i]} {channelName} :No topic is set\r\n"
-                    f":{serverName} 353 {nicks[i]} = {channelName} :{namesList}\r\n"
-                    f":{serverName} 366 {nicks[i]} {channelName} :End of NAMES list\r\n"
-                )
+                    reply = (
+                        f":{nicks[i]}!{hostmask} JOIN {channelName}\r\n"
+                        f":{serverName} 331 {nicks[i]} {channelName} :No topic is set\r\n"
+                        f":{serverName} 353 {nicks[i]} = {channelName} :{namesList}\r\n"
+                        f":{serverName} 366 {nicks[i]} {channelName} :End of NAMES list\r\n"
+                        )
 
-                # send the reply
+                else:
+                    reply = f":{serverName} 403 {nicks[i]} {channelName} :No such channel\r\n"
+
                 client.send(reply.encode('ascii'))
                 print(f"[{address}] <- {str(bytes(reply.encode()))}")
 
@@ -194,15 +199,34 @@ def handle_client(client, addr):
                 reply_to_WHO += f":{serverName} 315 {nicks[i]} {channelName} :End of WHO list\r\n"
                 client.send(reply_to_WHO.encode())
                 print(f"[{address}] <- {str(bytes(reply_to_WHO.encode()))}")
+
+            elif command == "PART":
+                channelName = msg.split()[1]
+                for channel in channels:
+                    if channel.name == channelName:
+                        for member in channel.members:
+                            outmsg = f":{nicks[i]}!{hostmask} {msg} : Leaving\n"
+                            member.connection.send((outmsg).encode('ascii'))
+                            print(f"[{address}] <- {str(bytes(outmsg.encode()))}")
+                            if member.connection == client:
+                                channel.members.remove(member)
+                        break
+
             elif command == "NICK":
                 new_nick = msg.split()[1]
-                validated_nick = valid_nick(new_nick, client)
-                print(validated_nick)
-                text = f":{nicks[i]}!{users[i]}@{clients[i].getpeername()[0]} NICK {validated_nick}\n"
-                send_to_client(client, text)
-                nicks[i] = validated_nick  # update an old nick
+                if valid_nick_TF(new_nick, client) == 0:
+                    text = f":{nicks[i]}!{users[i]}@{clients[i].getpeername()[0]} NICK {new_nick}\n"
+                    nicks[i] = new_nick
 
-                print(nicks[i])
+                elif valid_nick_TF(new_nick, client) == 1:
+                    text = f":{serverName} 433 {nicks[i]} {new_nick} :Nickname is already in use\r\n"
+                elif valid_nick_TF(new_nick, client) == 2:
+                    text = f":{serverName} 432 {nicks[i]} {new_nick} :Erroneous Nickname\r\n"
+
+
+
+                send_to_client(client, text)
+
             elif command == "QUIT":
                 print(address + " disconnected")
                 clients.remove(clients[i])
@@ -211,6 +235,10 @@ def handle_client(client, addr):
                 client.close()
                 semaphore.release()
                 break
+            else:
+                r = f":{serverName} 421 {nicks[i]} {command} :Unknown command\r\n"
+                client.send(r.encode('ascii'))
+                print(f"[{address}] <- {str(bytes(r.encode()))}")
 
             semaphore.release()
 
@@ -229,22 +257,48 @@ def receive_from_client(client):
 def send_to_client(client_socket, text):
     address = str(client_socket.getpeername()[0]) + ":" + str(client_socket.getpeername()[1])
     client_socket.send(text.encode())
-    #text.encode('ascii')????
-    print("[", address, "] <- " + str(bytes(text.encode())))
+    print(f"[{address}] <- " + str(bytes(text.encode())))
 
-def valid_nick(nick, client):
-    bad_nick = True
-    while bad_nick:
-        if len(nicks) ==0:
-            return nick
-
+def valid_nick_TF(nick, client):
+    special_chars = "'!\"#$%&'()*+,-./:;<=>?@[\]^_`{|}"
+    numbers = "0123456789"
+    if not any(i in nick for i in special_chars) and len(nick) > 0 and not nick[0] in numbers:
+        if len(nicks) == 0:  # first nickname
+            return 0  # accept nickname
         elif nick in nicks:
-            text = "Nickname is already in use"
-            send_to_client(client,text)
-            rcv = receive_from_client(client)
-            nick= rcv.split()[1]
+            return 1  # nickname in use
         else:
-            bad_nick = False
+            return 0
+    else:
+        return 2  # nickname has wrong format (e.g. symbols or starts with a number)
+
+def valid_nick(nick, client, special_char):
+    bad_nick = True
+    special_chars = "!#$%&()*+,./:;<=>?@"
+    numbers = "0123456789"
+    print("enter")
+    while bad_nick:
+        if not any(i in nick for i in special_chars) and len(nick) >0 and len(nick) <10 and not nick[0] in numbers:
+            if len(nicks) ==0:
+                return nick
+
+            elif nick in nicks:
+                print("inside")
+
+                text = f":{serverName} 433 {special_char} {nick} :Nickname is already in use\r\n"
+
+                send_to_client(client,text)
+                rcv = receive_from_client(client)
+                print(rcv)
+                nick= rcv.split()[1]
+            else:
+                bad_nick = False
+        else:
+            text =f":{serverName} 432 {special_char} {nick} :Erroneous Nickname\r\n"
+            send_to_client(client, text)
+            rcv = receive_from_client(client)
+            print(rcv)
+            nick = rcv.split()[1]
     return nick
 
 # handle first communication from clients
@@ -264,11 +318,10 @@ def recieve(client_socket, addr):
 
         if "NICK" in first_chars:  # handling NICK command
 
-            subs = rcv.split('\r\n')  # NICK command also contains the USER part
-            # but we don't want that, so we split around the
-            # new line
+            subs = rcv.split('\r\n')
             nick = subs[0][5:]  # set the nickname to everything following "NICK "
-            nick = valid_nick(nick,client_socket)
+            special_char = subs[1].split()[3]
+            nick = valid_nick(nick,client_socket, special_char)
             user = subs[1].split()[1]
             users.append(user)
             nicks.append(nick)  # add nickname to array
@@ -293,9 +346,26 @@ def recieve(client_socket, addr):
     print(nick, user)
     joinmsg_serv = "{0} joined the server!\r\n"
     joinmsg_client = "Welcome to the server {0}!\r\n"
+    """
+    [::1: 54898] < - b':LAPTOP-D411HM5B.broadband 001 jb :Hi, welcome to IRC\r\n' \
+                     b':LAPTOP-D411HM5B.broadband 002 jb :Your host is LAPTOP-D411HM5B.broadband, running version miniircd-2.1\r\n' \
+                     b':LAPTOP-D411HM5B.broadband 003 jb :This server was created sometime\r\n' \
+                     b':LAPTOP-D411HM5B.broadband 004 jb LAPTOP-D411HM5B.broadband miniircd-2.1 o o\r\n' \
+                     b':LAPTOP-D411HM5B.broadband 251 jb :There are 2 users and 0 services on 1 server\r\n' \
+                     b':LAPTOP-D411HM5B.broadband 422 jb :MOTD File is missing\r\n'
+    """
+    welcome=(
+        f":{serverName} 001 {nick} :Welcome to IRC\r\n"
+        f":{serverName} 002 {nick} :Your host is {serverName}\r\n"
+        f":{serverName} 003 {nick} :This server was created in 2021\r\n"
+        f":{serverName} 004 {nick} {serverName} group_5 server\r\n"
+        f":{serverName} 256 {nick} :There are {len(clients)} and 0 servise\r\n"
+       # f":{serverName} 422 {nick} :MOTD File is missing\r\n"
+              )
+
     broadcast(joinmsg_serv.format(nick).encode('ascii'))
-    client_socket.send(joinmsg_client.format(nick).encode('ascii'))
-    welcome = "Welcome to the server " + nick
+    client_socket.send(welcome.format(nick).encode('ascii'))
+   # welcome = "Welcome to the server " + nick
     print(f"[{address}] <- {str(bytes(welcome.encode()))}")
     # start a thread for handling the client comms
     thread = threading.Thread(target=handle_client, args=(client_socket, addr))
@@ -314,3 +384,4 @@ def main():
 
 
 main()
+

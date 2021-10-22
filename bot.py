@@ -3,6 +3,7 @@ import time
 import random
 import argparse
 import atexit
+import threading
 
 def connecting_to_socket(server, port):
 	global s
@@ -70,25 +71,33 @@ def log_in(username_arg):
 			print("Erroneous real name.")
 
 	mode_str=str(mode)
+	nick_option = 0
+	nicknames_list= [] #if fisrt is in use , chooses others
 	while in_use:
-		while not nick_valid:
-			nick=input("Enter a nickname: ")
-			if len(nick) < 10 and len(nick) > 0 and not nick[0].isdigit() and check_name_validity(nick) and nick.find(' ')==-1:  #checks nickname validity
-				nick_valid = True
-			else:
-				print("Nickname not valid (1-9 characters length, first character can't be - or a digit).")
-		request="NICK "+nick+"\r\nUSER "+user+" "+mode_str+" * :"+realname+"\r\n"
+		if nick_option==0:
+			for x in range(3):
+				nick_valid=False
+				while not nick_valid:
+					nick1=input(f"Enter a nick name ({x+1} choice): ")
+					if len(nick1) < 10 and len(nick1) > 0 and not nick1[0].isdigit() and check_name_validity(nick1) and nick1.find(' ')==-1 and nick1 not in nicknames_list:  #checks nickname validity
+						nicknames_list.append(nick1)
+						nick_valid = True
+					else:
+						print("Nickname not valid (1-9 characters length, first character can't be - or a digit).")
+				request="NICK "+nicknames_list[0]+"\r\nUSER "+user+" "+mode_str+" * :"+realname+"\r\n"
+		else:
+			request = "NICK " + nicknames_list[nick_option] + "\r\n"
 		s.send(request.encode())
 		result= s.recv(4096).decode() ## 4096 - buffer
-		nick_inuse_text = "Nickname is already in use" #migh need to be adjusted based on the message sent by a server when a nickname already in use
-		if nick_inuse_text in result:
-			print("Nickname is already in use choose another one")
-			nick_valid=False
+		print(result)
+		if "Nickname is already in use" in result:
+			#print("Nickname is already in use choose another one")
+			nick_option += 1
 		else:
 			print("Bot was successfully registered")
 			in_use=False
 
-
+	str(bytes(s.recv(4096)))
 
 
 ##Error handling needed to check:
@@ -99,9 +108,11 @@ def JOIN_channel(channel_arg):
 	else:
 		channel_name = input("Enter chat name: ")
 	request1="JOIN #"+channel_name+"\r\n"
-	s.send(request1.encode())
-	result= s.recv(4096).decode() ## 4096 - buffer
-	if(result!=""):  ## not sure what 'result' should display when bot doesn't join  the channel
+	s.send(bytes(request1.encode()))
+
+	result= str(bytes(s.recv(4096))) ## 4096 - buffer
+	print(result)
+	if(result!=" "):  ## not sure what 'result' should display when bot doesn't join  the channel
 		print("Bot has joined the channel #"+channel_name)
 	else:
 		print("Bot was not able to join the channel #"+channel_name)
