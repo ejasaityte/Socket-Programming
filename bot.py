@@ -74,7 +74,7 @@ def log_in(username_arg):
 	nick_option = 0
 	nicknames_list= [] #if fisrt is in use , chooses others
 	while in_use:
-		if nick_option==0:
+		if nick_option==0: # 3 nicks entered for the first time
 			for x in range(3):
 				nick_valid=False
 				while not nick_valid:
@@ -84,8 +84,12 @@ def log_in(username_arg):
 						nick_valid = True
 					else:
 						print("Nickname not valid (1-9 characters length, first character can't be - or a digit).")
-				request="NICK "+nicknames_list[0]+"\r\nUSER "+user+" "+mode_str+" * :"+realname+"\r\n"
-		else:
+			request0="CAP LS 302\r\n"
+			s.send(request0.encode())
+
+			request="NICK "+nicknames_list[0]+"\r\nUSER "+user+" "+mode_str+" * :"+realname+"\r\n"
+
+		else: #if 1st nick is not valid send this command only without users info
 			request = "NICK " + nicknames_list[nick_option] + "\r\n"
 		s.send(request.encode())
 		result= s.recv(4096).decode() ## 4096 - buffer
@@ -94,10 +98,10 @@ def log_in(username_arg):
 			#print("Nickname is already in use choose another one")
 			nick_option += 1
 		else:
-			print("Bot was successfully registered")
+			print(s.recv(4096).decode())
 			in_use=False
-
-	str(bytes(s.recv(4096)))
+	return nicknames_list[nick_option]
+	#str(bytes(s.recv(4096)))
 
 
 ##Error handling needed to check:
@@ -106,7 +110,7 @@ def JOIN_channel(channel_arg):
 	if channel_arg:
 		channel_name=channel_arg
 	else:
-		channel_name = input("Enter chat name: ")
+		channel_name = input("Enter chat name: #")
 	request1="JOIN #"+channel_name+"\r\n"
 	s.send(bytes(request1.encode()))
 
@@ -123,21 +127,31 @@ def JOIN_channel(channel_arg):
 Responding to messages directed to the bot via the common chat or privately
 NOTE: more random facts should be added , now it only responds with the same sentence
 """
-def respond_to_PRIVMSG(server_msg, channel_name):
-	substrings=server_msg.split(':')
-	receiver = substrings[1]
-	receiver1 = receiver.split('!')
+def respond_to_PRIVMSG(server_msg, nick):
 
-	random_fact = random.choice(open("facts").readlines())
+	substrings=server_msg.split() #e.g. sender PRIVMSG bot/#chat :message
+	#channel_or_client = substrings[2] #can be channel or another client
+	print(substrings)
+	random_fact = random.choice(open("facts.txt").readlines())
+	text = ""
+	#private message
+	if server_msg.split()[2] == nick:
+		sender = server_msg.split('!')[0]
+		sender = sender.replace(":", "")
+		print("MESSAGE: "+server_msg)
+		print("sender: "+ sender)
+		text=f"PRIVMSG {sender} :{random_fact}\r\n"
+		print(text)
+		s.send(text.encode())
+	#message from a channel
+	elif "#" or "&" in server_msg.split()[2]:
+		print(server_msg.split()[2])
+		text = f"PRIVMSG {server_msg.split()[2]} :{random_fact}\r\n"
+		s.send(text.encode())
 
-	#if the message was sent via a public channel(e.g. #test) and directed to the bot
-	if(server_msg.find(channel_name) !=-1):
-		random_fact = "PRIVMSG #"+channel_name +" :"+ receiver1[0] + " :"+random_fact+"\r\n"
-	else:
-		# if the message was sent privately and directed to the bot
-		random_fact="PRIVMSG "+receiver1[0]+" :"+random_fact+"\r\n"
 
-	s.send(random_fact.encode())
+
+		#s.send(text.encode())
 
 def PONG_response():
 	msg="PONG bot is still alive"
@@ -211,7 +225,7 @@ def main():
 			print('Server unavailable.')
 			exit()
 
-	log_in(args.name)
+	nick = log_in(args.name)
 	channel_n=JOIN_channel(args.channel) #getting channel name
 	while True:
 		server_msg = s.recv(4096).decode()
@@ -223,11 +237,11 @@ def main():
 		elif len(server_msg) == 0:
 			print('Server disconnected.')
 			exit()
-		elif split_server_msg[1] == 'PRIVMSG' and split_server_msg[2] == nick:
-			print("Private message received")
-			respond_to_PRIVMSG(server_msg, channel_n)
 		elif split_server_msg[1] == 'PRIVMSG' and (split_server_msg[3] == ':!hello\r\n' or split_server_msg[3] == ':!slap\r\n' or split_server_msg[3] == ':!slap'):
 			respond_to_commands(split_server_msg, channel_n)
+		elif split_server_msg[1] == 'PRIVMSG' :
+			print("Message received")
+			respond_to_PRIVMSG(server_msg, nick)
 
 	atexit.register(disconnect)
 	#time.sleep(10)
