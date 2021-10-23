@@ -1,5 +1,8 @@
 import socket
 import threading
+import traceback
+import sys
+
 
 HEADER = 1024  # standard accepted header size in bytes. saves faffing with numbers in the code
 PORT = 6667  # hard coded port
@@ -66,6 +69,9 @@ def handle_client(client, addr):
             # handles commands
             if msg == "" or msg.split()[0] == "QUIT":
                 print(address + " disconnected")
+                for channel in channels:
+                    if Client(nicks[i],client) in channel.members:
+                        channel.members.remove(Client(nicks[i],client))
                 clients.remove(clients[i])
                 nicks.remove(nicks[i])
                 full_login.remove(full_login[i])
@@ -74,15 +80,15 @@ def handle_client(client, addr):
                 client.close()
                 semaphore.release()
                 break
-            elif (msg.split()[0] == "PRIVMSG"):
+            elif (msg.split()[0] == "PRIVMSG" or msg.split()[0] == "privmsg"):
                 target = msg.split()[1]
                 #print(target)
                 # get the server name from the message
                 if "#" in target:  # message sent in a chat
                     # find the searched for channel
                     for channel in channels:
-                        if target == channel.name:
-                            outmsg = f":{nicks[i]}!{hostmask} {msg}\n"
+                        if target == channel.name and len(nicks)>i:
+                            outmsg = f":{nicks[i]}!{hostmask} {msg}"
                             # send the message to each member of the channel
                             for member in channel.members:
                                 if member.connection != client:
@@ -93,7 +99,7 @@ def handle_client(client, addr):
                             break
 
                 else:
-                    text = msg.split(":")[1]
+                    text = msg.split(target)[1]
                     #print(text)
                     j = nicks.index(target) # index of a client that must receive the message
                     #print(f"index {j}")
@@ -245,7 +251,8 @@ def handle_client(client, addr):
 
             semaphore.release()
 
-        except:
+        except Exception:
+            print(traceback.format_exc())
             clients.remove(client)
             client.close()
             semaphore.release()
@@ -387,5 +394,3 @@ def main():
 
 
 main()
-
-
