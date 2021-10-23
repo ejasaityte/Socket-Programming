@@ -209,6 +209,30 @@ def handle_client(client, addr):
                     text = f":{serverName} 432 {nicks[i]} {new_nick} :Erroneous Nickname\r\n"
                 send_to_client(client, text)
 
+            #if NAMES command
+            elif command == "NAMES":
+                #get the name(s) of the channel(s)
+                channelsStr = msg.split()[1]
+                channelNames = channelsStr.split(",")
+                #for each channel requested
+                for channelName in channelNames:
+                    #for each channel on the server
+                    for channel in channels:
+                        #if the channel names match
+                        if channel.name == channelName:
+                            #make a list of channel members
+                            namesList = ""
+                            for member in channel.members:
+                                namesList += member.nick
+                                namesList += " "
+                            #send the outgoing message
+                            outmsg = ""
+                            outmsg += f":{serverName} 353 {nicks[i]} = {channelName} :{namesList}\r\n"
+                            outmsg += f":{serverName} 366 {nicks[i]} {channelName} :End of NAMES list\r\n"
+                            client.send((outmsg).encode('ascii'))
+                            print(f"[{address}] <- {str(bytes(outmsg.encode()))}")
+                            break
+
             elif command == "QUIT":
                 print(address + " disconnected")
                 clients.remove(clients[i])
