@@ -175,7 +175,8 @@ def respond_to_commands(split_server_msg, channel_name):
         nick_string = n_server_msg.split('\r\n')[0]
         nick_arr = nick_string.split(':')[2]
         nick_arr = nick_arr.split(' ')    #puts names of all users in channel in a list
-        nick_arr.remove('')
+        if '' in nick_arr:
+                nick_arr.remove('')
         if split_server_msg[3] == ':!slap\r\n':
             if len(nick_arr)>2:
                 rand_nick = random.choice(nick_arr) #gets random user from user list
