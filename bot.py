@@ -5,6 +5,7 @@ import argparse
 import atexit
 import threading
 
+
 def connecting_to_socket(server, port):
 	global s
 	try:
@@ -28,13 +29,8 @@ def disconnect():
 	print('Disconnecting bot...')
 	message = 'QUIT :Leaving\r\n'
 	s.send(message.encode())
+	s.close()
 
-"""
-Logging in/registering using IRC protocol
-"""
-##Error handling needed to check:
-#   1)if nic, usern, realn have acceptable characters, format, length
-#   2)if username is in use (is it included in IRC?)
 def log_in(username_arg):
 	global nick, user, realname
 	#Log in to IRC by specifying NICK and USERNAME
@@ -72,7 +68,7 @@ def log_in(username_arg):
 
 	mode_str=str(mode)
 	nick_option = 0
-	nicknames_list= [] #if fisrt is in use , chooses others
+	nicknames_list= [] #if first is in use , chooses others
 	while in_use:
 		if nick_option==0: # 3 nicks entered for the first time
 			for x in range(3):
@@ -94,16 +90,14 @@ def log_in(username_arg):
 		s.send(request.encode())
 		result= s.recv(4096).decode() ## 4096 - buffer
 		if "Nickname is already in use" in result:
-			#print("Nickname is already in use choose another one")
 			nick_option += 1
 		else:
-			print(s.recv(4096).decode())
-			in_use=False
+			print(result)
+			break
 	return nicknames_list[nick_option]
 
 
-##Error handling needed to check:
-#   1) if bot joins a non-existing channel
+
 def JOIN_channel(channel_arg):
 	if channel_arg:
 		channel_name=channel_arg
@@ -113,43 +107,41 @@ def JOIN_channel(channel_arg):
 	s.send(bytes(request1.encode()))
 
 	result= str(bytes(s.recv(4096))) ## 4096 - buffer
-	print(result)
-	if(result!=" "):  ## not sure what 'result' should display when bot doesn't join  the channel
+	if("No topic is set" in result):
 		print("Bot has joined the channel #"+channel_name)
+		members_in_list = result.split(':')[7]
+		members_in_list = members_in_list.replace("\\r\\n","")
+		print(f"{members_in_list} in #{channel_name}")
 	else:
 		print("Bot was not able to join the channel #"+channel_name)
 	return channel_name
 
 
-"""
-Responding to messages directed to the bot via the common chat or privately
-NOTE: more random facts should be added , now it only responds with the same sentence
-"""
+
+#Responding to messages directed to the bot via the common chat or privately
 def respond_to_PRIVMSG(server_msg, nick):
 
 	substrings=server_msg.split() #e.g. sender PRIVMSG bot/#chat :message
-	#channel_or_client = substrings[2] #can be channel or another client
-	print(substrings)
 	random_fact = random.choice(open("facts.txt").readlines())
-	text = ""
+	sender = server_msg.split('!')[0]
+	sender = sender.replace(":", "")
 	#private message
 	if server_msg.split()[2] == nick:
-		sender = server_msg.split('!')[0]
-		sender = sender.replace(":", "")
-		#print("MESSAGE: "+server_msg)
-		#print("sender: "+ sender)
+		print(f"From {sender} {server_msg.split(nick)[1]}")
 		text=f"PRIVMSG {sender} :{random_fact}\r\n"
-		#print(text)
 		s.send(text.encode())
 	#message from a channel
 	elif "#" or "&" in server_msg.split()[2]:
-		#print(server_msg.split()[2])
+		channel_n = server_msg.split()[2]
+		print(f"{sender} in {channel_n} :{server_msg.split(channel_n)[1]}")
 		text = f"PRIVMSG {server_msg.split()[2]} :{random_fact}\r\n"
 		s.send(text.encode())
 
-
-
-		#s.send(text.encode())
+#displays if a user left the channel
+def PART_response(msg):
+	leaver = msg.split('!')[0]
+	leaver = leaver.replace(":", "")
+	print(f"{leaver} left the channel  {msg.split()[2]}")
 
 def PONG_response():
 	msg="PONG bot is still alive"
@@ -227,7 +219,7 @@ def main():
 	channel_n=JOIN_channel(args.channel) #getting channel name
 	while True:
 		server_msg = s.recv(4096).decode()
-		print(server_msg)
+		#print(server_msg)
 		split_server_msg = server_msg.split(' ') #splits server message by spaces
 		#print(split_server_msg)
 		if split_server_msg[0] == 'PING':
@@ -240,10 +232,8 @@ def main():
 		elif split_server_msg[1] == 'PRIVMSG' :
 			print("Message received")
 			respond_to_PRIVMSG(server_msg, nick)
+		elif split_server_msg[1] == 'PART':
+			PART_response(server_msg)
 
-	atexit.register(disconnect)
-	#time.sleep(10)
-	#s.close()
-
-
+		atexit.register(disconnect)
 main()
