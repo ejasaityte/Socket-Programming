@@ -8,6 +8,7 @@ ADDR = (SERVER, PORT)  # tuple for connecting to server
 
 # server boot up
 server_socket = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
 server_socket.bind(ADDR)
 server_socket.listen()
