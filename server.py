@@ -7,15 +7,12 @@ SERVER = "::"  # hard coded IP
 ADDR = (SERVER, PORT)  # tuple for connecting to server
 
 # server boot up
-# need to add error handling for a failed connection (should be fine tho)
 server_socket = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
 
 server_socket.bind(ADDR)
 server_socket.listen()
 print(f"[LISTENING] Server is listening on {PORT}")
 serverName = socket.gethostname()
-
-
 
 # class for Channels
 class Channel():
@@ -28,7 +25,6 @@ class Channel():
 
 
 # class for Clients
-# currently just used for storing clients in channels
 class Client():
     nick = ''
     connection = None
@@ -48,19 +44,9 @@ full_login =[] #stores nick usrname mode number special character and real name
 
 
 # send message to all clients
-# no idea if this is neccessary but nice to have
 def broadcast(message):
     for client in clients:  # messy implementation but it does the job
         client.send(message)
-
-
-def print_total_clients():
-    if (len(clients) == 1):
-        print(str(len(clients)) + " client on the server")
-    else:
-        print(str(len(clients)) + " clients on the server")
-
-
 
 # handle the clients messages that are sent
 def handle_client(client, addr):
@@ -75,11 +61,19 @@ def handle_client(client, addr):
 
             # get the hostmask
             hostmask = f"{users[i]}@{addr[0]}"
-            command = msg.split()[0]
 
             # handles commands
-            # handles private message command
-            if (command == "PRIVMSG"):
+            if msg == "" or msg.split()[0] == "QUIT":
+                print(address + " disconnected")
+                clients.remove(clients[i])
+                nicks.remove(nicks[i])
+                full_login.remove(full_login[i])
+                print(full_login)
+                #threads[i].kill()  # but not removed from list
+                client.close()
+                semaphore.release()
+                break
+            elif (msg.split()[0] == "PRIVMSG"):
                 target = msg.split()[1]
                 #print(target)
                 # get the server name from the message
@@ -109,7 +103,7 @@ def handle_client(client, addr):
                     print(f"[{address1}] <- {str(bytes(text.encode()))}")
 
             # handles join command
-            elif (command == "JOIN"):
+            elif (msg.split()[0] == "JOIN"):
                 # get the channel name from the message
                 channelName = msg.split()[1]
                 #channel name must contain #
@@ -123,11 +117,9 @@ def handle_client(client, addr):
                             # store the channel
                             tempChannel = channel
                             members_list = tempChannel.members
-                            #sending JOIN to those members that are already in a channel
+                            #sending JOIN to those members that are already in a channel but not to the member that wants to join it
                             for member in members_list:
-                                #print(member.nick)
                                 k = nicks.index(member.nick)
-                                #print(k)
                                 text = f":{nicks[i]}!{users[i]}@{clients[i].getpeername()[0]} JOIN {channelName}\r\n"
                                 clients[k].send(bytes(text.encode()))
                                 address1 = str(clients[k].getpeername()[0]) + ":" + str(clients[k].getpeername()[1])
@@ -165,12 +157,12 @@ def handle_client(client, addr):
                 client.send(reply.encode())
                 print(f"[{address}] <- {str(bytes(reply.encode()))}")
 
-            elif command == "MODE":
+            elif msg.split()[0] == "MODE":
                 chat = msg.split()[1]
                 text = f":{serverName} 324 {nicks[i]} {chat} +\r\n"
                 client.send(text.encode())
                 print(f"[{address}] <- {str(bytes(text.encode()))}")
-            elif command == "WHO":
+            elif msg.split()[0] == "WHO":
                 chat_name = msg.split()[1]
                 clients_in_channel = None
                 reply_to_WHO =""
@@ -185,19 +177,27 @@ def handle_client(client, addr):
                 client.send(reply_to_WHO.encode())
                 print(f"[{address}] <- {str(bytes(reply_to_WHO.encode()))}")
 
-            elif command == "PART":
+            elif msg.split()[0] == "PART":
                 channelName = msg.split()[1]
                 for channel in channels:
                     if channel.name == channelName:
+                        outmsg = f":{nicks[i]}!{hostmask} {msg} : Leaving\n"
+                        remove = Client(nicks[i], client)
                         for member in channel.members:
-                            outmsg = f":{nicks[i]}!{hostmask} {msg} : Leaving\n"
+                            print(member.nick)
+                            if member.nick == nicks[i]:
+                                remove=member
+                                continue
                             member.connection.send((outmsg).encode('ascii'))
-                            print(f"[{address}] <- {str(bytes(outmsg.encode()))}")
-                            if member.connection == client:
-                                channel.members.remove(member)
+                            add = str(member.connection.getpeername()[0]) + ":" + str(member.connection.getpeername()[1])
+                            print(f"[{add}] <- {str(bytes(outmsg.encode()))}")
+                           # if member.connection == client:
+                        client.send((outmsg).encode('ascii'))
+                        print(f"[{address}] <- {str(bytes(outmsg.encode()))}")
+                        channel.members.remove(remove)
                         break
 
-            elif command == "NICK":
+            elif msg.split()[0] == "NICK":
                 new_nick = msg.split()[1]
                 if valid_nick_TF(new_nick, client) == 0:
                     text = f":{nicks[i]}!{users[i]}@{clients[i].getpeername()[0]} NICK {new_nick}\n"
@@ -210,7 +210,7 @@ def handle_client(client, addr):
                 send_to_client(client, text)
 
             #if NAMES command
-            elif command == "NAMES":
+            elif msg.split()[0] == "NAMES":
                 #get the name(s) of the channel(s)
                 channelsStr = msg.split()[1]
                 channelNames = channelsStr.split(",")
@@ -233,20 +233,12 @@ def handle_client(client, addr):
                             print(f"[{address}] <- {str(bytes(outmsg.encode()))}")
                             break
 
-            elif command == "QUIT":
-                print(address + " disconnected")
-                clients.remove(clients[i])
-                nicks.remove(nicks[i])
-                #threads[i].kill()  # but not removed from list
-                client.close()
-                semaphore.release()
-                break
-            elif command == "PING":
+            elif msg.split()[0] == "PING":
                 msg1 = msg.split()[1]
                 resp = f":{serverName} PONG {serverName} :{msg1}"
                 send_to_client(client,resp)
             else:
-                r = f":{serverName} 421 {nicks[i]} {command} :Unknown command\r\n"
+                r = f":{serverName} 421 {nicks[i]} {msg.split()[0]} :Unknown command\r\n"
                 client.send(r.encode('ascii'))
                 print(f"[{address}] <- {str(bytes(r.encode()))}")
 
@@ -335,7 +327,6 @@ def recieve(client_socket, addr):
             users.append(user)
             nicks.append(nick)  # add nickname to array
             log = nick + " " + subs[1].replace("USER ","")
-           # print(log)
             full_login.append(log)
             break
 
@@ -371,11 +362,11 @@ def recieve(client_socket, addr):
         f":{serverName} 002 {nick} :Your host is {serverName}\r\n"
         f":{serverName} 003 {nick} :This server was created in 2021\r\n"
         f":{serverName} 004 {nick} {serverName} group_5 server\r\n"
-        f":{serverName} 256 {nick} :There are {len(clients)} and 0 servise\r\n"
+        f":{serverName} 256 {nick} :There are {len(clients)} clients on 1 server\r\n"
         #f":{serverName} 422 {nick} :MOTD File is missing\r\n"
               )
 
-    broadcast(joinmsg_serv.format(nick).encode('ascii'))
+    #broadcast(joinmsg_serv.format(nick).encode('ascii'))
     client_socket.send(welcome.format(nick).encode('ascii'))
     print(f"[{address}] <- {str(bytes(welcome.encode()))}")
     # start a thread for handling the client comms
