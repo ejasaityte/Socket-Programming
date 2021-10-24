@@ -1,5 +1,9 @@
 import socket
 import threading
+import traceback
+import sys
+import time
+
 
 HEADER = 1024  # standard accepted header size in bytes. saves faffing with numbers in the code
 PORT = 6667  # hard coded port
@@ -29,12 +33,14 @@ class Channel():
 class Client():
     nick = ''
     connection = None
+    last_ping_time = time.time()
 
     def __init__(self, nick, connection):
         self.nick = nick
         self.connection = connection
 
 
+last_ping_time = [] #stores last time client responded to ping
 clients = []  # stores the connection instances for all clients
 nicks = []  # stores the nicknames of all clients
 users = []  # stores the username of all clients
@@ -52,29 +58,42 @@ def broadcast(message):
 # handle the clients messages that are sent
 def handle_client(client, addr):
     semaphore.acquire()
+    last_ping_time.append(time.time())
     while True:
         i = clients.index(client)
         try:
             msg = client.recv(HEADER).decode('ascii')
-            address = str(client.getpeername()[0]) + ":" + str(client.getpeername()[1])
+
+            try:
+                address = str(client.getpeername()[0]) + ":" + str(client.getpeername()[1])
+            except:
+                break
 
             print(f"[{address}] -> {str(bytes(msg.encode()))}")
 
             # get the hostmask
             hostmask = f"{users[i]}@{addr[0]}"
 
+            if msg.split()[0] == "PONG":
+                last_ping_time[i]=time.time()
+
             # handles commands
-            if msg == "" or msg.split()[0] == "QUIT":
+            elif msg == "" or msg.split()[0] == "QUIT":
                 print(address + " disconnected")
+                for channel in channels:
+                    for member in channel.members:
+                        if member.nick==nicks[i]:
+                            channel.members.remove(member)
                 clients.remove(clients[i])
                 nicks.remove(nicks[i])
+                last_ping_time.remove(last_ping_time[i])
                 full_login.remove(full_login[i])
                 print(full_login)
                 #threads[i].kill()  # but not removed from list
                 client.close()
                 semaphore.release()
                 break
-            elif (msg.split()[0] == "PRIVMSG"):
+            elif (msg.split()[0] == "PRIVMSG" or msg.split()[0] == "privmsg"):
                 target = msg.split()[1]
                 #print(target)
                 # get the server name from the message
@@ -82,7 +101,7 @@ def handle_client(client, addr):
                     # find the searched for channel
                     for channel in channels:
                         if target == channel.name:
-                            outmsg = f":{nicks[i]}!{hostmask} {msg}\n"
+                            outmsg = f":{nicks[i]}!{hostmask} {msg}"
                             # send the message to each member of the channel
                             for member in channel.members:
                                 if member.connection != client:
@@ -93,15 +112,16 @@ def handle_client(client, addr):
                             break
 
                 else:
-                    text = msg.split(":")[1]
+                    text = msg.split(target)[1]
                     #print(text)
-                    j = nicks.index(target) # index of a client that must receive the message
+                    if target in nicks:
+                        j = nicks.index(target) # index of a client that must receive the message
                     #print(f"index {j}")
 
-                    text = f":{nicks[i]}!{users[i]}@{clients[i].getpeername()[0]} PRIVMSG {nicks[j]} :{text}"
-                    clients[j].send(bytes(text.encode()))
-                    address1=str(clients[j].getpeername()[0]) + ":" + str(clients[j].getpeername()[1])
-                    print(f"[{address1}] <- {str(bytes(text.encode()))}")
+                        text = f":{nicks[i]}!{users[i]}@{clients[i].getpeername()[0]} PRIVMSG {nicks[j]} :{text}"
+                        clients[j].send(bytes(text.encode()))
+                        address1=str(clients[j].getpeername()[0]) + ":" + str(clients[j].getpeername()[1])
+                        print(f"[{address1}] <- {str(bytes(text.encode()))}")
 
             # handles join command
             elif (msg.split()[0] == "JOIN"):
@@ -120,11 +140,12 @@ def handle_client(client, addr):
                             members_list = tempChannel.members
                             #sending JOIN to those members that are already in a channel but not to the member that wants to join it
                             for member in members_list:
-                                k = nicks.index(member.nick)
-                                text = f":{nicks[i]}!{users[i]}@{clients[i].getpeername()[0]} JOIN {channelName}\r\n"
-                                clients[k].send(bytes(text.encode()))
-                                address1 = str(clients[k].getpeername()[0]) + ":" + str(clients[k].getpeername()[1])
-                                print(f"[{address1}] <- {str(bytes(text.encode()))}")
+                                if member is not None:
+                                    k = nicks.index(member.nick)
+                                    text = f":{nicks[i]}!{users[i]}@{clients[i].getpeername()[0]} JOIN {channelName}\r\n"
+                                    clients[k].send(bytes(text.encode()))
+                                    address1 = str(clients[k].getpeername()[0]) + ":" + str(clients[k].getpeername()[1])
+                                    print(f"[{address1}] <- {str(bytes(text.encode()))}")
                             # add the client to the channel
                             channel.members.append(Client(nicks[i], client))
                             # stop the loop
@@ -245,7 +266,8 @@ def handle_client(client, addr):
 
             semaphore.release()
 
-        except:
+        except Exception:
+            #print(traceback.format_exc())
             clients.remove(client)
             client.close()
             semaphore.release()
@@ -297,12 +319,20 @@ def valid_nick(nick, client ):
             else:
                 bad_nick = False
         else:
+            print(nick)
+            if any(i in nick for i in special_chars):
+                print('1')
+            if len(nick)==0 or len(nick)>10:
+                print('2')
+            if nick[0] in numbers:
+                print('3')
             text =f":{serverName} 432 * {nick} :Erroneous Nickname\r\n"
             send_to_client(client, text)
             rcv = receive_from_client(client)
             #print(rcv)
             nick = rcv.split()[1]
     return nick
+
 
 # handle first communication from clients
 def recieve(client_socket, addr):
@@ -320,16 +350,27 @@ def recieve(client_socket, addr):
 
         # if CAP and NICK comes in different lines
         if "NICK" in first_chars:
-
-            subs = rcv.split('\r\n')
-            nick = subs[0][5:]  # set the nickname to everything following "NICK "
-            nick = valid_nick(nick,client_socket)
-            user = subs[1].split()[1]
-            users.append(user)
-            nicks.append(nick)  # add nickname to array
-            log = nick + " " + subs[1].replace("USER ","")
-            full_login.append(log)
-            break
+            #socat connection doesn't send newlines, so it needs alternative code
+            if rcv.find('\r\n',0,len(rcv)-4)!=-1:
+                subs = rcv.split('\r\n')
+                nick = subs[0][5:]  # set the nickname to everything following "NICK "
+                nick = valid_nick(nick,client_socket)
+                user = subs[1].split()[1]
+                users.append(user)
+                nicks.append(nick)  # add nickname to array
+                log = nick + " " + subs[1].replace("USER ","")
+                full_login.append(log)
+                break
+            else:
+                subs = rcv.split(' ')
+                nick = subs[1]  # set the nickname to everything following "NICK "
+                nick = valid_nick(nick,client_socket)
+                user = subs[3]
+                users.append(user)
+                nicks.append(nick)  # add nickname to array
+                log = rcv.replace("USER ","")
+                full_login.append(log)
+                break
 
         # if CAP and NICK comes in one line
         elif "CAP" in first_chars and "NICK" in rcv:
@@ -375,17 +416,40 @@ def recieve(client_socket, addr):
     threads.append(thread)
     thread.start()
 
+def ping():
+    while True:
+        time.sleep(60)
+        current_time = time.time()
+        for client in clients:
+            index = clients.index(client)
+            if current_time-last_ping_time[index]>120:
+                print(client.getpeername()[0] + " timed out")
+                for channel in channels:
+                    for member in channel.members:
+                        if member.nick==nicks[index]:
+                            channel.members.remove(member)
+                last_ping_time.remove(last_ping_time[index])
+                clients.remove(clients[index])
+                nicks.remove(nicks[index])
+                full_login.remove(full_login[index])
+                client.close()
+            else:
+                text =f"PING {str(client.getpeername()[0])}:{str(client.getpeername()[1])}\r\n"
+                send_to_client(client, text)
+                time.sleep(3)
+
 
 def main():
     print("[STARTING] Server is starting...")
+    thread = threading.Thread(target=ping)
+    thread.start()
     while True:
         client_socket, addr = server_socket.accept()  # open connection (error handling not present yet)
         try:
             recieve(client_socket, addr)
-        except:
+        except Exception:
+            print(traceback.format_exc())
             print("No client detected")
 
 
 main()
-
-
