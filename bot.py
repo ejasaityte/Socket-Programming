@@ -163,7 +163,7 @@ def PONG_response():
 def respond_to_commands(split_server_msg, channel_name):
     response_message = ''
     friend_nick = split_server_msg[0].split('!')[0][1:] #gets the nickname of the user who sent the command
-    if split_server_msg[3] == ':!hello\r\n':
+    if split_server_msg[3] == ':!hello\r\n' or split_server_msg[3] == '!hello\r\n':
         if split_server_msg[2] == "#" + channel_name:
             response_message = "PRIVMSG #"+channel_name + " :" + friend_nick + " :Hello to you too, " + friend_nick + ".\r\n"
         else:
@@ -177,7 +177,7 @@ def respond_to_commands(split_server_msg, channel_name):
         nick_arr = nick_arr.split(' ')    #puts names of all users in channel in a list
         if '' in nick_arr:
                 nick_arr.remove('')
-        if split_server_msg[3] == ':!slap\r\n':
+        if split_server_msg[3] == ':!slap\r\n' or split_server_msg[3] == '!slap\r\n':
             if len(nick_arr)>2:
                 rand_nick = random.choice(nick_arr) #gets random user from user list
                 while rand_nick==nick or rand_nick == friend_nick: #if random user is bot or the user who sent the command, try again
@@ -233,8 +233,8 @@ def main():
     channel_n=JOIN_channel(args.channel) #getting channel name
     while True:
         server_msg = s.recv(1024).decode()
-        #print(server_msg)
         split_server_msg = server_msg.split(' ') #splits server message by spaces
+        print(split_server_msg)
         if split_server_msg[0] == 'PING':
                 PONG_response()
         elif len(server_msg) == 0:
@@ -243,7 +243,7 @@ def main():
         elif split_server_msg[1] == 'PRIVMSG' and not split_server_msg[2][1:] == channel_n:
                 print("Message received")
                 respond_to_PRIVMSG(server_msg, nick)
-        elif split_server_msg[1] == 'PRIVMSG' and (split_server_msg[3] == ':!hello\r\n' or split_server_msg[3] == ':!slap\r\n' or split_server_msg[3] == ':!slap'):
+        elif split_server_msg[1] == 'PRIVMSG' and (split_server_msg[3] == ':!hello\r\n' or split_server_msg[3] == ':!slap\r\n' or split_server_msg[3] == ':!slap' or split_server_msg[3] == '!hello\r\n' or split_server_msg[3] == '!slap\r\n' or split_server_msg[3] == '!slap'):
                 respond_to_commands(split_server_msg, channel_n)
         elif split_server_msg[1] == 'PART':
                 PART_response(server_msg)
