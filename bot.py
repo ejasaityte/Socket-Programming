@@ -234,7 +234,6 @@ def main():
     while True:
         server_msg = s.recv(1024).decode()
         split_server_msg = server_msg.split(' ') #splits server message by spaces
-        print(split_server_msg)
         if split_server_msg[0] == 'PING':
                 PONG_response()
         elif len(server_msg) == 0:
