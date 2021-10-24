@@ -139,16 +139,18 @@ def respond_to_PRIVMSG(server_msg, nick):
     #private message
     if server_msg.split()[2] == nick:
         print(f"From {sender} {server_msg.split(nick)[1]}")
-        text=f"PRIVMSG {sender} :{random_fact}\r\n"
+        text=f"PRIVMSG {sender} {random_fact}\r\n"
         s.send(text.encode())
         
     #bot should only send random facts in private chat            
     #message from a channel
-    #elif "#" or "&" in server_msg.split()[2]:
-    #    channel_n = server_msg.split()[2]
-    #    print(f"{sender} in {channel_n} :{server_msg.split(channel_n)[1]}")
-    #    text = f"PRIVMSG {server_msg.split()[2]}:{random_fact}\r\n"
-    #    s.send(text.encode())
+
+    elif "#" or "&" in server_msg.split()[2]:
+        channel_n = server_msg.split()[2]
+        print(f"{sender} in {channel_n} {server_msg.split(channel_n)[1]}")
+        #text = f"PRIVMSG {server_msg.split()[2]}:{random_fact}\r\n"
+        #s.send(text.encode())
+
 
 #displays if a user left the channel
 def PART_response(msg):
@@ -156,8 +158,15 @@ def PART_response(msg):
     leaver = leaver.replace(":", "")
     print(f"{leaver} left the channel  {msg.split()[2]}")
 
-def PONG_response():
-    msg="PONG bot is still alive"
+def someone_JOINS_channel(msg):
+    joinning_user = msg.split('!')[0]
+    joinning_user = joinning_user.replace(":", "")
+    print(f"{joinning_user} joined {msg.split()[2]}")
+
+
+def PONG_response(msg):
+    text = msg.split()[1]
+    msg=f"PONG {text}\r\n"
     s.send(msg.encode())
 
 def respond_to_commands(split_server_msg, channel_name):
@@ -235,15 +244,18 @@ def main():
         server_msg = s.recv(1024).decode()
         split_server_msg = server_msg.split(' ') #splits server message by spaces
         if split_server_msg[0] == 'PING':
-                PONG_response()
+                PONG_response(server_msg)
         elif len(server_msg) == 0:
                 print('Server disconnected.')
                 exit()
-        elif split_server_msg[1] == 'PRIVMSG' and not split_server_msg[2][1:] == channel_n:
-                print("Message received")
-                respond_to_PRIVMSG(server_msg, nick)
         elif split_server_msg[1] == 'PRIVMSG' and (split_server_msg[3] == ':!hello\r\n' or split_server_msg[3] == ':!slap\r\n' or split_server_msg[3] == ':!slap' or split_server_msg[3] == '!hello\r\n' or split_server_msg[3] == '!slap\r\n' or split_server_msg[3] == '!slap'):
                 respond_to_commands(split_server_msg, channel_n)
+        elif split_server_msg[1] == 'PRIVMSG' :
+                print("Message received")
+                #print(split_server_msg)
+                respond_to_PRIVMSG(server_msg, nick)
         elif split_server_msg[1] == 'PART':
                 PART_response(server_msg)
+        elif split_server_msg[1] == 'JOIN':
+                someone_JOINS_channel(server_msg)
 main()

@@ -45,7 +45,7 @@ clients = []  # stores the connection instances for all clients
 nicks = []  # stores the nicknames of all clients
 users = []  # stores the username of all clients
 channels = []  # stores the channels on the server
-threads = []
+threads = [] #stores threads which correspond to each client
 semaphore = threading.Semaphore(1)
 full_login =[] #stores nick usrname mode number special character and real name
 
@@ -218,7 +218,7 @@ def handle_client(client, addr):
                         print(f"[{address}] <- {str(bytes(outmsg.encode()))}")
                         channel.members.remove(remove)
                         break
-
+            #update a nick of a current user
             elif msg.split()[0] == "NICK":
                 new_nick = msg.split()[1]
                 if valid_nick_TF(new_nick, client) == 0:
@@ -387,18 +387,9 @@ def recieve(client_socket, addr):
             break
 
     clients.append(client_socket)  # add client instance to the array
-    #print(nicks)
-    #print(nick, user)
+
     joinmsg_serv = "{0} joined the server!\r\n"
     joinmsg_client = "Welcome to the server {0}!\r\n"
-    """
-    [::1: 54898] < - b':LAPTOP-D411HM5B.broadband 001 jb :Hi, welcome to IRC\r\n' \
-                     b':LAPTOP-D411HM5B.broadband 002 jb :Your host is LAPTOP-D411HM5B.broadband, running version miniircd-2.1\r\n' \
-                     b':LAPTOP-D411HM5B.broadband 003 jb :This server was created sometime\r\n' \
-                     b':LAPTOP-D411HM5B.broadband 004 jb LAPTOP-D411HM5B.broadband miniircd-2.1 o o\r\n' \
-                     b':LAPTOP-D411HM5B.broadband 251 jb :There are 2 users and 0 services on 1 server\r\n' \
-                     b':LAPTOP-D411HM5B.broadband 422 jb :MOTD File is missing\r\n'
-    """
     welcome=(
         f":{serverName} 001 {nick} :Welcome to IRC\r\n"
         f":{serverName} 002 {nick} :Your host is {serverName}\r\n"
