@@ -139,7 +139,7 @@ def respond_to_PRIVMSG(server_msg, nick):
     #private message
     if server_msg.split()[2] == nick:
         print(f"From {sender} {server_msg.split(nick)[1]}")
-        text=f"PRIVMSG {sender} {random_fact}\r\n"
+        text=f"PRIVMSG {sender} :{random_fact}\r\n"
         s.send(text.encode())
         
     #bot should only send random facts in private chat            
